@@ -295,6 +295,12 @@ function Show-PopupWindow {
     } catch { }
   })
 
+  $itemTray = New-Object System.Windows.Controls.MenuItem
+  $itemTray.Header = "Show in tray"
+  $itemTray.Add_Click({
+    try { Save-ModeRequest -Mode "tray" } catch { }
+  })
+
   $itemClose = New-Object System.Windows.Controls.MenuItem
   $itemClose.Header = "Close"
   $itemClose.Add_Click({
@@ -305,6 +311,7 @@ function Show-PopupWindow {
   })
 
   [void]$menu.Items.Add($itemReset)
+  [void]$menu.Items.Add($itemTray)
   [void]$menu.Items.Add($itemClose)
   $script:PopWindow.ContextMenu = $menu
 

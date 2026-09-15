@@ -16,6 +16,11 @@ export function hostInfoPathOf(stateDir: string): string {
   return join(stateDir, "host.json");
 }
 
+/** Written by a host menu item ("Show in tray" / "Show as window"). */
+export function modeRequestPathOf(stateDir: string): string {
+  return join(stateDir, "mode.request");
+}
+
 export function hostScriptPath(): string {
   return fileURLToPath(new URL("../host/popup.ps1", import.meta.url));
 }

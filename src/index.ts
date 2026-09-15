@@ -1,8 +1,16 @@
+import { readFileSync, rmSync } from "node:fs";
 import { Plugin } from "@opencode/plugin";
 import { parseConfig, type PopupMode } from "./config";
 import { createDebugLog } from "./debug";
 import { HostSupervisor, type HostSettings } from "./host";
-import { hostScriptPath, instanceSlug, presenceFileOf, projectNameOf, statusStateDir } from "./paths";
+import {
+  hostScriptPath,
+  instanceSlug,
+  modeRequestPathOf,
+  presenceFileOf,
+  projectNameOf,
+  statusStateDir,
+} from "./paths";
 import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
 import { PresenceWriter } from "./presence";
 import { SessionActivity, type RawEvent } from "./status";
@@ -70,7 +78,7 @@ export default Plugin.define({
 
     // /popup-* commands: the renderer is switchable at runtime, the choice is
     // remembered, and the host restarts because its settings no longer match.
-    const switchMode = async (mode: PopupMode, persist: boolean): Promise<void> => {
+    const switchMode = async (mode: PopupMode, persist: boolean): Promise<string> => {
       if (settings.mode !== mode) {
         settings.mode = mode;
         presence.setMode(mode);
@@ -81,43 +89,99 @@ export default Plugin.define({
         : ctx.storage.remove(MODE_PREFERENCE_KEY)
       ).catch(() => undefined);
       trace(`switch mode=${mode} persist=${persist}`);
+      void host.ensure();
+      return mode;
+    };
+
+    const applyRequest = async (request: unknown): Promise<string | undefined> => {
+      switch (request) {
+        case "window":
+          return switchMode("window", true);
+        case "tray":
+          return switchMode("tray", true);
+        case "toggle":
+          return switchMode(toggleMode(settings.mode === "tray" ? "tray" : "window"), true);
+        case "reset":
+          return switchMode(config.mode, false);
+        default:
+          return undefined;
+      }
     };
 
     await ctx.command.transform((editor) => {
       editor.add({
         name: "popup-window",
         description: "Status popup: show the floating pill instead of the tray icon",
-        execute: async () => {
-          await switchMode("window", true);
-          void host.ensure();
-        },
+        execute: async () => void (await applyRequest("window")),
       });
       editor.add({
         name: "popup-tray",
         description: "Status popup: show a tray icon instead of the floating pill",
-        execute: async () => {
-          await switchMode("tray", true);
-          void host.ensure();
-        },
+        execute: async () => void (await applyRequest("tray")),
       });
       editor.add({
         name: "popup-toggle",
         description: "Status popup: switch between the floating pill and the tray icon",
-        execute: async () => {
-          const next = toggleMode(settings.mode === "tray" ? "tray" : "window");
-          await switchMode(next, true);
-          void host.ensure();
-        },
+        execute: async () => void (await applyRequest("toggle")),
       });
       editor.add({
         name: "popup-reset",
         description: "Status popup: forget the chosen mode and use the one from the config",
-        execute: async () => {
-          await switchMode(config.mode, false);
-          void host.ensure();
+        execute: async () => void (await applyRequest("reset")),
+      });
+    });
+
+    // The same switch as a tool, so it can be asked for in a prompt ("put the
+    // popup in the tray"): the palette only lists client side commands.
+    await ctx.tool.transform((editor) => {
+      editor.namespace({
+        name: "popup",
+        description: "opencode status popup: show it as a floating pill or as a tray icon",
+      });
+      editor.add({
+        name: "mode",
+        description:
+          "Switch the opencode status popup between the floating pill window and the tray icon. Use 'toggle' when the user does not care which one, 'reset' to go back to the configured mode.",
+        input: {
+          type: "object",
+          properties: {
+            mode: {
+              type: "string",
+              enum: ["window", "tray", "toggle", "reset"],
+              description: "window shows the pill, tray shows the tray icon",
+            },
+          },
+          required: ["mode"],
+          additionalProperties: false,
+        },
+        options: { namespace: "popup", codemode: true },
+        execute: async (input) => {
+          const requested = (input as { mode?: unknown }).mode;
+          const applied = await applyRequest(requested);
+          if (!applied) return { content: `Unknown popup mode: ${String(requested)}` };
+          return { content: `Status popup is now in ${applied} mode.` };
         },
       });
     });
+
+    // Menu items in the host ("Show in tray" / "Show as window") leave a
+    // request file: the renderer is decided here, so they are applied on the
+    // next tick and the host is replaced.
+    const requestFile = modeRequestPathOf(stateDir);
+    const watchRequest = setInterval(() => {
+      let requested: unknown;
+      try {
+        const raw = readFileSync(requestFile, "utf8");
+        rmSync(requestFile, { force: true });
+        requested = (JSON.parse(raw) as { mode?: unknown })?.mode;
+      } catch {
+        return; // nothing waiting
+      }
+      void applyRequest(requested).then((applied) => {
+        trace(`mode request ${String(requested)} applied=${String(applied)}`);
+      });
+    }, 500);
+    watchRequest.unref?.();
 
     void (async () => {
       try {
@@ -140,6 +204,7 @@ export default Plugin.define({
       controller.abort();
       clearInterval(heartbeat);
       clearInterval(supervise);
+      clearInterval(watchRequest);
       presence.dispose();
       host.shutdown();
     };

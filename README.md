@@ -25,7 +25,7 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 
 - **You are never left guessing** — is it working, retrying, stuck, or waiting for you?
 - **The permission state comes first**: a session blocked on a permission decision outranks everything else, so you can be in another window and still notice.
-- **Out of the way**: the pill has no border, no taskbar button, it never steals focus, it reopens where you left it and you can drag it anywhere. Prefer nothing on screen? Switch to the tray icon with `/popup-tray`.
+- **Out of the way**: the pill has no border, no taskbar button, it never steals focus, it reopens where you left it and you can drag it anywhere. Prefer nothing on screen? Right click it and pick `Show in tray` (or ask *"put the popup in the tray"*).
 - **Several projects, one indicator**: every OpenCode instance reports in and the popup shows the union.
 - **Nothing to install twice**: the UI is a small PowerShell process that starts on demand and exits by itself; the plugin itself is plain TypeScript.
 
@@ -144,23 +144,31 @@ All options are optional. Defaults shown.
 ## Interaction
 
 - **Drag** the pill with the left mouse button. The position is remembered in `%TEMP%\opencode-status-popup\window.json` and checked every couple of seconds, so the pill reopens where you left it even if the host was killed, the mode was switched, or OpenCode restarted.
-- **Right click** for `Reset position` and `Close`.
-- In `tray` mode, **left click** shows a balloon with the current state and **right click** opens `Close`.
+- **Right click** the pill for `Show in tray`, `Reset position` and `Close`. In `tray` mode, **right click** the icon for `Show as window` and `Close`, and **left click** it for a balloon with the current state.
 - The window never appears in the taskbar or the Alt+Tab list, and it does not activate itself when it appears.
 - The tray icon keeps a **constant tooltip** (`opencode-status-popup`) on purpose: Windows uses the tooltip as part of the icon identity and hides an icon whose tooltip changes. The live state is in the balloon you get on left click.
 
-## Commands
+## Switching the renderer
 
-Four commands switch the renderer at runtime — no config edit, no restart:
+Three ways, none of them needs a config edit or a restart. The choice is kept in the plugin storage, and the running host is replaced immediately, with the pill coming back where it was.
 
-| Command | What it does |
-|---|---|
-| `/popup-window` | show the floating pill |
-| `/popup-tray` | show the tray icon |
-| `/popup-toggle` | switch between the two |
-| `/popup-reset` | forget the choice and go back to the `mode` of the config |
+**Click it.** Right click the pill for `Show in tray`, or right click the tray icon for `Show as window`. The host asks the plugin for the change and it lands in about a second.
 
-The switch is immediate: the running host is replaced by one in the new mode, and the pill comes back where it was. The choice is kept in the plugin storage, so it survives restarts of OpenCode until you run `/popup-reset`.
+**Ask the agent.** The plugin registers a tool, so a prompt like *"put the popup in the tray"* works:
+
+```
+popup_mode({ mode: "window" | "tray" | "toggle" | "reset" })
+```
+
+**Commands.** `/popup-window`, `/popup-tray`, `/popup-toggle` and `/popup-reset` are registered on the server and work when a client dispatches them, for example:
+
+```sh
+opencode api post /api/session/<sessionID>/command --data '{"command":"popup-toggle","text":""}'
+```
+
+> Note: the command palette of the TUI lists the commands the *client* knows about. Commands contributed by a server plugin are reported by `GET /api/command` but are not part of that list yet, so they may not appear in the `/` autocomplete — the tool above is the path that works from a normal prompt today.
+
+`reset` (or `/popup-reset`) forgets the choice and goes back to the `mode` of the config.
 
 In tray mode the icon may start inside the hidden icons area (`^`) the first time — drag it onto the taskbar once and it stays there.
 

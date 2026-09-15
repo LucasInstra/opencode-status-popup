@@ -48,6 +48,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   const queue = new EventQueue();
   const store = new Map<string, unknown>();
   const commands: string[] = [];
+  const tools: string[] = [];
   const context = {
     options: { mode, idleSeconds: 30 },
     location: { directory },
@@ -63,6 +64,21 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
         return { dispose: async () => {} };
       },
     },
+    tool: {
+      transform: async (
+        callback: (editor: {
+          namespace: (namespace: { name: string }) => void;
+          add: (definition: { name: string }) => void;
+        }) => void,
+      ) => {
+        let namespace = "";
+        callback({
+          namespace: (definition) => void (namespace = definition.name),
+          add: (definition) => void tools.push(`${namespace}_${definition.name}`),
+        });
+        return { dispose: async () => {} };
+      },
+    },
   };
 
   let cleanup: Awaited<ReturnType<typeof plugin.setup>> = undefined;
@@ -73,6 +89,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     expect(existsSync(presence)).toBe(true);
     expect(readJson(presence)?.phase).toBe("idle");
     expect(commands).toContain("popup-tray");
+    expect(tools).toContain("popup_mode");
 
     queue.push({ type: "session.status", data: { sessionID: "ses_smoke", status: { type: "busy" } } });
     const busy = await waitFor(() => {

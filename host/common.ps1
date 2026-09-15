@@ -233,6 +233,18 @@ function Format-AggregateTooltip {
   return $text
 }
 
+function Save-ModeRequest {
+  # The renderer is picked by the plugin, so a host menu item only leaves a
+  # request behind. The plugin reads it, stores the choice and replaces the host.
+  param([string]$Mode)
+
+  try {
+    $target = Join-Path $script:StateDirPath "mode.request"
+    Write-JsonFile -Path $target -Json (ConvertTo-JsonCompact ([ordered]@{ mode = $Mode }))
+    Write-PopupLog ("requested mode=$Mode")
+  } catch { }
+}
+
 function Read-WindowState {
   try {
     if ([System.IO.File]::Exists($script:WindowStatePath)) {

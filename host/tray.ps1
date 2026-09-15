@@ -245,6 +245,10 @@ function Show-TrayIcon {
 
   # Context menu, opened from the raw tray callback (see TrayIcon.cs).
   $menu = New-Object System.Windows.Forms.ContextMenuStrip
+  $itemWindow = $menu.Items.Add("Show as window")
+  $itemWindow.Add_Click({
+    try { Save-ModeRequest -Mode "window" } catch { }
+  })
   $itemClose = $menu.Items.Add("Close")
   $itemClose.Add_Click({
     try {
