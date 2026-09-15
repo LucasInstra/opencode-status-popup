@@ -81,15 +81,46 @@ export class HostSupervisor {
   }
 
   private async doSpawn(): Promise<void> {
-    const args = this.buildArgs();
+    // Someone else is already rendering; nothing to do.
+    const current = this.readInfo();
+    if (current && this.isLive(current)) return;
+
     const candidates = [this.options.shellPath, "pwsh.exe", "powershell.exe"].filter(
       (candidate): candidate is string => typeof candidate === "string" && candidate.length > 0,
     );
 
     for (const shell of candidates) {
-      if (await trySpawn(shell, args)) return;
+      if (await this.tryShell(shell)) return;
     }
     this.warn("could not start the popup host: no usable PowerShell found");
+  }
+
+  /**
+   * Starts the host with one PowerShell and waits for its first heartbeat.
+   * The Store build of pwsh exits its launcher immediately, so the exit code
+   * says nothing about the host; host.json is the only reliable proof.
+   */
+  private async tryShell(shell: string): Promise<boolean> {
+    const before = this.readInfo()?.updated ?? 0;
+    try {
+      const child = spawn(shell, this.buildArgs(), {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      child.on("error", () => {});
+      child.unref();
+    } catch {
+      return false;
+    }
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await delay(250);
+      const info = this.readInfo();
+      if (info && this.isLive(info) && (info.updated ?? 0) > before) return true;
+    }
+    this.log(`${shell} did not start the popup host`);
+    return false;
   }
 
   private buildArgs(): string[] {
@@ -172,29 +203,9 @@ export class HostSupervisor {
   }
 }
 
-function trySpawn(shell: string, args: string[]): Promise<boolean> {
+function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    let settled = false;
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(value);
-    };
-
-    let child;
-    try {
-      child = spawn(shell, args, { detached: true, stdio: "ignore", windowsHide: true });
-    } catch {
-      resolve(false);
-      return;
-    }
-
-    const timer = setTimeout(() => finish(true), 700);
-    child.on("error", () => finish(false));
-    child.on("spawn", () => {
-      child.unref();
-      finish(true);
-    });
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
   });
 }

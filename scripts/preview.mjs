@@ -36,7 +36,9 @@ const project = "preview";
 
 writePresence();
 startHeartbeat();
+let spawnedHost = false;
 const spawned = await ensureHost();
+spawnedHost = spawned;
 
 console.log(`state dir: ${stateDir}`);
 console.log(`host: ${spawned ? "spawned" : "already running"}`);
@@ -45,9 +47,9 @@ console.log("use --stop to clean up, or Ctrl+C");
 
 if (options.seconds > 0) {
   setTimeout(() => {
-    stopHost();
+    release();
     process.exit(0);
-  }, options.seconds * 1000).unref();
+  }, options.seconds * 1000);
 }
 
 if (options.watch) {
@@ -60,7 +62,7 @@ if (options.watch) {
     retry = next === "retry";
     writePresence();
     console.log(`state: ${next}`);
-  }, 6000).unref();
+  }, 6000);
 }
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -140,7 +142,7 @@ function writePresence() {
 }
 
 function startHeartbeat() {
-  setInterval(writePresence, 3000).unref();
+  setInterval(writePresence, 3000);
 }
 
 function readHostInfo() {
@@ -229,5 +231,23 @@ function stopHost() {
     if (existsSync(presenceFile)) rmSync(presenceFile);
   } catch {
     // ignore
+  }
+}
+
+/** Drops our presence file and only stops the host when this run started it. */
+function release() {
+  try {
+    if (existsSync(presenceFile)) rmSync(presenceFile);
+  } catch {
+    // ignore
+  }
+  if (!spawnedHost) return;
+  const info = readHostInfo();
+  if (info?.pid) {
+    try {
+      process.kill(info.pid);
+    } catch {
+      // already gone
+    }
   }
 }

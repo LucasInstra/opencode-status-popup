@@ -39,8 +39,18 @@ Write-PopupLog ("start mode={0} pid={1} word={2} typeMs={3} position={4} state={
 # ---------------------------------------------------------------------------
 $createdNew = $false
 $mutex = New-Object System.Threading.Mutex($true, "Local\opencode-status-popup-host", [ref]$createdNew)
+$holding = $createdNew
 if (-not $createdNew) {
-  if (-not $mutex.WaitOne(5000)) {
+  try {
+    $holding = $mutex.WaitOne(5000)
+  } catch [System.Threading.AbandonedMutexException] {
+    # The previous host was killed while holding the mutex. We own it now.
+    Write-PopupLog "took over an abandoned host"
+    $holding = $true
+  } catch {
+    $holding = $false
+  }
+  if (-not $holding) {
     Write-PopupLog "another host is already running, exiting"
     $mutex.Dispose()
     exit 0
@@ -66,7 +76,9 @@ try {
   Write-PopupLog ("fatal: " + $_.Exception.ToString())
   exit 1
 } finally {
-  try { $mutex.ReleaseMutex() } catch { }
+  if ($holding) {
+    try { $mutex.ReleaseMutex() } catch { }
+  }
   try { $mutex.Dispose() } catch { }
 }
 
