@@ -28,7 +28,6 @@ Add-Type -AssemblyName System.Windows.Forms
 $script:DocWord = "opencode"
 $script:PopWord = $script:DocWord
 $null = New-PopupWindow
-$script:TrayMarkMask = New-OpenCodeMarkMask -Pixels 256
 
 $script:DocBackdrop = [System.Drawing.Color]::FromArgb(255, 13, 13, 17)
 $script:DocLabel = [System.Drawing.Color]::FromArgb(255, 139, 148, 158)
@@ -190,11 +189,17 @@ $palette = @{
   idle       = @(0x7A, 0xC0, 0xFF)
 }
 
+$script:TrayRingCells = Get-OpenCodeRingCells
+$totalCells = $script:TrayRingCells.Count
+
 $trayFrames = @()
-for ($i = 0; $i -lt 12; $i++) { $trayFrames += (New-MarkFrame -Size $iconSize -Angle ((360.0 * $i) / 12) -Rgb $palette["busy"]) }
-for ($i = 0; $i -lt 12; $i++) { $trayFrames += (New-MarkFrame -Size $iconSize -Angle ((360.0 * $i) / 12) -Rgb $palette["retry"]) }
+foreach ($name in @("busy", "retry")) {
+  for ($visible = 0; $visible -le $totalCells; $visible++) {
+    $trayFrames += (New-LetterFrame -Size $iconSize -VisibleCells $visible -Rgb $palette[$name])
+  }
+}
 foreach ($name in @("error", "permission", "idle")) {
-  $trayFrames += (New-MarkFrame -Size $iconSize -BrightAlpha 0.95 -Rgb $palette[$name])
+  $trayFrames += (New-LetterFrame -Size $iconSize -VisibleCells $totalCells -Rgb $palette[$name] -Alpha 0.95)
 }
 
 $scale = 8

@@ -12,17 +12,17 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 
 | State | Window | Tray | Meaning |
 |---|---|---|---|
-| `idle` | `opencode`, white, slow breathing | mark, slow blink | nothing is running |
-| `busy` | `opencode` typing itself, blue | mark with a bright wedge sweeping around it, blue | the agent is working |
-| `retry` | `opencode` typing itself, amber | same sweep, amber | a provider request failed and another attempt is scheduled |
-| `error` | `opencode!`, red, breathing | mark, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
-| `permission` | `opencode?`, violet, faster breathing | mark, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
+| `idle` | `opencode`, white, slow breathing | the o, slow blink | nothing is running |
+| `busy` | `opencode` typing itself, blue | the o drawing itself pixel by pixel, blue | the agent is working |
+| `retry` | `opencode` typing itself, amber | the o drawing itself pixel by pixel, amber | a provider request failed and another attempt is scheduled |
+| `error` | `opencode!`, red, breathing | the o, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
+| `permission` | `opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
 
 Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. The tray tooltip and the tray balloon carry the detail (`needs you: bash git push origin main`, `error: 429 provider.rate-limit`), which is also where several projects are listed.
 
 ![the five states](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/states.png)
 
-Tray icons for the same states, the bright wedge sweeping around the mark while the agent works and the mark blinking while it waits for you, at 8x and at real size:
+Tray icons for the same states, the letter o building itself pixel by pixel while the agent works and blinking while it waits for you, at 8x and at real size:
 
 ![tray icons in every state](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.png)
 
@@ -30,8 +30,8 @@ Two renderers, chosen with the `mode` option:
 
 | | `window` (default) | `tray` |
 |---|---|---|
-| What you see | frameless translucent pill, top of the z-order | system tray icon with the OpenCode mark |
-| Animation | the word types itself out | the mark with a bright wedge sweeping around it while it works, blinking while it waits |
+| What you see | frameless translucent pill, top of the z-order | system tray icon with the letter o of the wordmark |
+| Animation | the word types itself out | the o building itself pixel by pixel while it works, blinking while it waits |
 | Cost | ~45–60 MB (PowerShell + WPF) | ~30–40 MB (PowerShell + WinForms) |
 | Intrusiveness | floats above other windows, but no border, no taskbar button, does not steal focus | nothing covers the screen |
 | Legibility of the word | fully readable | not readable at 16 px, hence the mark and the tooltip |
@@ -121,6 +121,7 @@ All options are optional. Defaults shown.
 - **Right click** for `Reset position` and `Close`.
 - In `tray` mode, **left click** shows a balloon with the current state and **right click** opens `Close`.
 - The window never appears in the taskbar or the Alt+Tab list, and it does not activate itself when it appears.
+- The tray icon keeps a **constant tooltip** (`opencode-status-popup`) on purpose: Windows uses the tooltip as part of the icon identity and hides an icon whose tooltip changes. The live state is in the balloon you get on left click.
 
 ## How it works
 
@@ -138,7 +139,7 @@ OpenCode server
 - **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Permission prompts come from `permission.asked` / `permission.replied`. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
 - **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed.
-- **Tray overflow**: Windows puts new tray icons in the hidden overflow area by default. Drag it onto the taskbar to keep it visible.
+- **Tray overflow**: Windows puts a new tray icon in the hidden icons area. Drag it onto the taskbar once and it stays there: the plugin registers the icon with a fixed GUID identity (see `host/TrayIcon.cs`), so the shell remembers your choice across restarts.
 
 ## Development
 

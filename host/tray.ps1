@@ -2,121 +2,73 @@
 #
 # Event handlers only see $script: state and file level functions, see window.ps1.
 
-# The official OpenCode mark: an outlined square with a block inside, taken from
-# the favicon. Coordinates below are the 512x512 viewBox values.
+# The tray icon is the "o" of the opencode wordmark (a square ring, same shape
+# language as the logo) drawn on a pixel grid, built pixel by pixel while the
+# agent works.
 
-function New-OpenCodeMarkMask {
-  # White mark on transparent, rendered once at a higher resolution so the
-  # frames can be tinted and scaled down with antialiasing.
-  param([int]$Pixels)
-
-  $bitmap = New-Object System.Drawing.Bitmap($Pixels, $Pixels, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  try {
-    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $graphics.Clear([System.Drawing.Color]::Transparent)
-
-    # Mark bounds: x 128..384, y 96..416 (256x320). Hole: 192..320 x 160..352.
-    $padding = [Math]::Max(1.0, $Pixels * 0.04)
-    $scale = ($Pixels - (2 * $padding)) / 320.0
-    $left = [float](($Pixels - (256 * $scale)) / 2)
-    $top = [float](($Pixels - (320 * $scale)) / 2)
-
-    $outer = [System.Drawing.RectangleF]::new($left, $top, [float](256 * $scale), [float](320 * $scale))
-    $hole = [System.Drawing.RectangleF]::new(
-      [float]($left + (64 * $scale)),
-      [float]($top + (64 * $scale)),
-      [float](128 * $scale),
-      [float](192 * $scale))
-    $block = [System.Drawing.RectangleF]::new(
-      [float]($left + (64 * $scale)),
-      [float]($top + (128 * $scale)),
-      [float](128 * $scale),
-      [float](128 * $scale))
-
-    $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
-    try {
-      $graphics.FillRectangle($white, $outer)
-      # Punch the hole, then draw the block that sits inside it.
-      $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-      $clear = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::Transparent)
-      try { $graphics.FillRectangle($clear, $hole) } finally { $clear.Dispose() }
-      $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-      $graphics.FillRectangle($white, $block)
-    } finally { $white.Dispose() }
-  } finally {
-    $graphics.Dispose()
-  }
-
-  return $bitmap
-}
-
-function New-TintAttributes {
+function Get-OpenCodeRingCells {
+  # Cells of the ring on a Columns x Rows grid, clockwise from the top left, so
+  # the letter looks like it is being drawn.
   param(
-    [int[]]$Rgb,
-    [double]$Alpha
+    [int]$Columns = 6,
+    [int]$Rows = 6
   )
 
-  $matrix = New-Object System.Drawing.Imaging.ColorMatrix
-  $matrix.Matrix00 = [float]($Rgb[0] / 255.0)
-  $matrix.Matrix11 = [float]($Rgb[1] / 255.0)
-  $matrix.Matrix22 = [float]($Rgb[2] / 255.0)
-  $matrix.Matrix33 = [float]$Alpha
-  $matrix.Matrix44 = 1.0
-
-  $attributes = New-Object System.Drawing.Imaging.ImageAttributes
-  $attributes.SetColorMatrix($matrix)
-  return $attributes
+  $cells = New-Object System.Collections.Generic.List[object]
+  for ($x = 0; $x -lt $Columns; $x++) { $cells.Add([pscustomobject]@{ X = $x; Y = 0 }) }
+  for ($y = 1; $y -lt $Rows; $y++) { $cells.Add([pscustomobject]@{ X = ($Columns - 1); Y = $y }) }
+  for ($x = ($Columns - 2); $x -ge 0; $x--) { $cells.Add([pscustomobject]@{ X = $x; Y = ($Rows - 1) }) }
+  for ($y = ($Rows - 2); $y -ge 1; $y--) { $cells.Add([pscustomobject]@{ X = 0; Y = $y }) }
+  return $cells
 }
 
-function New-MarkFrame {
-  # One tray icon: the mark in the given colour. A negative angle draws the
-  # plain mark (brightness only), otherwise a bright wedge sweeps over a dim mark.
+function New-LetterFrame {
+  # One tray icon: the first VisibleCells pixels of the ring, or the whole
+  # letter when VisibleCells is the ring size.
   param(
     [int]$Size,
-    [double]$Angle = -1,
-    [double]$BrightAlpha = 1.0,
-    [double]$DimAlpha = 0.55,
-    [double]$WedgeDegrees = 110,
-    [int[]]$Rgb
+    [int]$VisibleCells,
+    [int[]]$Rgb,
+    [double]$Alpha = 1.0
   )
 
-  $mask = $script:TrayMarkMask
+  $cells = $script:TrayRingCells
+  if (-not $cells) { $cells = Get-OpenCodeRingCells }
+  $columns = 6
+  $rows = 6
+
+  $cell = [Math]::Max(1, [Math]::Floor(($Size - 2) / [Math]::Max($columns, $rows)))
+  $gap = 0
+  if ($cell -ge 3) { $gap = 1 }
+  $gridWidth = ($columns * $cell) + (($columns - 1) * $gap)
+  if ($gridWidth -gt ($Size - 1)) {
+    $gap = 0
+    $gridWidth = $columns * $cell
+  }
+  $gridHeight = ($rows * $cell) + (($rows - 1) * $gap)
+  $originX = [Math]::Floor(($Size - $gridWidth) / 2)
+  $originY = [Math]::Floor(($Size - $gridHeight) / 2)
+
   $bitmap = New-Object System.Drawing.Bitmap($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   try {
-    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
     $graphics.Clear([System.Drawing.Color]::Transparent)
+    # Crisp pixels: no smoothing on axis aligned blocks.
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::None
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
 
-    $destination = [System.Drawing.Rectangle]::new(0, 0, $Size, $Size)
-    $source = [System.Drawing.Rectangle]::new(0, 0, $mask.Width, $mask.Height)
-    $unit = [System.Drawing.GraphicsUnit]::Pixel
+    $color = [System.Drawing.Color]::FromArgb([int][Math]::Round(255 * $Alpha), $Rgb[0], $Rgb[1], $Rgb[2])
+    $brush = New-Object System.Drawing.SolidBrush($color)
 
-    if ($Angle -ge 0) {
-      $dimAttributes = New-TintAttributes -Rgb $Rgb -Alpha $DimAlpha
-      try { $graphics.DrawImage($mask, $destination, 0, 0, $mask.Width, $mask.Height, $unit, $dimAttributes) } finally { $dimAttributes.Dispose() }
-
-      $wedge = New-Object System.Drawing.Drawing2D.GraphicsPath
-      try {
-        $radius = $Size * 1.5
-        $wedge.AddPie(
-          [float](($Size / 2) - $radius),
-          [float](($Size / 2) - $radius),
-          [float]($radius * 2),
-          [float]($radius * 2),
-          [float]$Angle,
-          [float]$WedgeDegrees)
-        $graphics.SetClip($wedge)
-        $brightAttributes = New-TintAttributes -Rgb $Rgb -Alpha $BrightAlpha
-        try { $graphics.DrawImage($mask, $destination, 0, 0, $mask.Width, $mask.Height, $unit, $brightAttributes) } finally { $brightAttributes.Dispose() }
-        $graphics.ResetClip()
-      } finally { $wedge.Dispose() }
-    } else {
-      $attributes = New-TintAttributes -Rgb $Rgb -Alpha $BrightAlpha
-      try { $graphics.DrawImage($mask, $destination, 0, 0, $mask.Width, $mask.Height, $unit, $attributes) } finally { $attributes.Dispose() }
-    }
+    try {
+      $count = [Math]::Min($VisibleCells, $cells.Count)
+      for ($index = 0; $index -lt $count; $index++) {
+        $target = $cells[$index]
+        $x = $originX + ($target.X * ($cell + $gap))
+        $y = $originY + ($target.Y * ($cell + $gap))
+        $graphics.FillRectangle($brush, [int]$x, [int]$y, $cell, $cell)
+      }
+    } finally { $brush.Dispose() }
   } finally {
     $graphics.Dispose()
   }
@@ -129,10 +81,21 @@ function New-MarkFrame {
 function Update-TrayProgressIcon {
   $phase = $script:TrayPhase
 
-  # Working phases sweep a bright wedge around the mark.
+  # Working phases draw the letter pixel by pixel.
   if ($phase -eq "busy" -or $phase -eq "retry") {
-    $script:TrayProgress = ($script:TrayProgress % $script:TraySweepSteps) + 1
-    $script:TrayNotifyIcon.Icon = $script:TraySweepFrames[$phase][$script:TrayProgress - 1].Icon
+    $total = $script:TrayRingCells.Count
+    if ($script:TrayProgress -ge $total) {
+      $script:TrayHold++
+      if ($script:TrayHold -ge 2) {
+        # Back to two pixels, not zero: an empty icon reads as a glitch.
+        $script:TrayProgress = 2
+        $script:TrayHold = 0
+      }
+    } else {
+      # Two pixels per tick keeps roughly 125ms per pixel with the 250ms timer.
+      $script:TrayProgress = [Math]::Min($total, $script:TrayProgress + 2)
+    }
+    $script:TrayTrayIcon.Update($script:TrayBuildFrames[$phase][$script:TrayProgress].Icon)
     return
   }
 
@@ -147,9 +110,9 @@ function Update-TrayProgressIcon {
 
   $script:TrayBlink = ($script:TrayBlink + 1) % ($cadence * 2)
   if ($script:TrayBlink -lt $cadence) {
-    $script:TrayNotifyIcon.Icon = $frames[0].Icon
+    $script:TrayTrayIcon.Update($frames[0].Icon)
   } else {
-    $script:TrayNotifyIcon.Icon = $frames[1].Icon
+    $script:TrayTrayIcon.Update($frames[1].Icon)
   }
 }
 
@@ -167,7 +130,7 @@ function Update-TrayTick {
       Write-PopupLog "no plugin heartbeat, closing tray"
       $script:TrayClosing = $true
       $script:TrayTimer.Stop()
-      $script:TrayNotifyIcon.Visible = $false
+      $script:TrayTrayIcon.Hide()
       [System.Windows.Forms.Application]::ExitThread()
       return
     }
@@ -183,8 +146,9 @@ function Update-TrayTick {
   $visible = $script:TrayWord
   $working = $script:TrayPhase -eq "busy" -or $script:TrayPhase -eq "retry"
   if ($working) {
-    # The tooltip tracks the sweep so the word still grows while it works.
-    $ratio = $script:TrayProgress / $script:TraySweepSteps
+    # The tooltip tracks the pixel build so the word grows with the letter.
+    $total = $script:TrayRingCells.Count
+    $ratio = $script:TrayProgress / $total
     $chars = [Math]::Max(1, [int][Math]::Round($ratio * $script:TrayWord.Length))
     if ($chars -lt $script:TrayWord.Length) {
       $visible = $script:TrayWord.Substring(0, $chars)
@@ -192,10 +156,7 @@ function Update-TrayTick {
   }
 
   $tooltip = Format-AggregateTooltip -Aggregate $agg -Word $script:TrayWord -ProgressWord $visible
-  if ($tooltip -ne $script:TrayTooltip) {
-    $script:TrayTooltip = $tooltip
-    $script:TrayNotifyIcon.Text = $tooltip
-  }
+  if ($tooltip -ne $script:TrayTooltip) { $script:TrayTooltip = $tooltip }
 }
 
 function Show-TrayIcon {
@@ -232,31 +193,30 @@ function Show-TrayIcon {
     idle       = @(0x7A, 0xC0, 0xFF)
   }
 
-  $script:TrayMarkMask = New-OpenCodeMarkMask -Pixels ([Math]::Min(256, $size * 8))
-
-  $script:TraySweepSteps = 12
-  $script:TraySweepFrames = @{}
+  $script:TrayRingCells = Get-OpenCodeRingCells
+  $script:TrayBuildFrames = @{}
   foreach ($name in @("busy", "retry")) {
     $frames = @()
-    for ($i = 0; $i -lt $script:TraySweepSteps; $i++) {
-      $angle = (360.0 * $i) / $script:TraySweepSteps
-      $frames += (New-MarkFrame -Size $size -Angle $angle -Rgb $palette[$name])
+    # Index 0 is the empty icon, used only if the phase starts from nothing.
+    for ($visible = 0; $visible -le $script:TrayRingCells.Count; $visible++) {
+      $frames += (New-LetterFrame -Size $size -VisibleCells $visible -Rgb $palette[$name])
     }
-    $script:TraySweepFrames[$name] = $frames
+    $script:TrayBuildFrames[$name] = $frames
   }
 
   $script:TrayBlinkFrames = @{}
   foreach ($name in @("idle", "error", "permission")) {
-    $bright = New-MarkFrame -Size $size -BrightAlpha 0.95 -Rgb $palette[$name]
-    $dim = New-MarkFrame -Size $size -BrightAlpha 0.35 -Rgb $palette[$name]
+    $bright = New-LetterFrame -Size $size -VisibleCells $script:TrayRingCells.Count -Rgb $palette[$name] -Alpha 0.95
+    $dim = New-LetterFrame -Size $size -VisibleCells $script:TrayRingCells.Count -Rgb $palette[$name] -Alpha 0.35
     $script:TrayBlinkFrames[$name] = @($bright, $dim)
   }
 
   $allFrames = @()
-  foreach ($group in $script:TraySweepFrames.Values) { $allFrames += $group }
+  foreach ($group in $script:TrayBuildFrames.Values) { $allFrames += $group }
   foreach ($group in $script:TrayBlinkFrames.Values) { $allFrames += $group }
 
   $script:TrayProgress = 0
+  $script:TrayHold = 0
   $script:TrayBlink = 0
   $script:TrayTicks = 0
   $script:TrayMissingTicks = 0
@@ -264,35 +224,43 @@ function Show-TrayIcon {
   $script:TrayClosing = $false
   $script:TrayTooltip = "opencode"
 
-  $notify = New-Object System.Windows.Forms.NotifyIcon
-  $notify.Icon = $script:TrayBlinkFrames["idle"][0].Icon
-  $notify.Text = $script:TrayTooltip
-  $notify.Visible = $true
-  $script:TrayNotifyIcon = $notify
+  # One fixed GUID for this plugin: the shell keys the tray settings (including
+  # where the user dragged the icon) on it, so they survive restarts.
+  $script:TrayIconIdentity = "8f2b1c4e-7d3a-4f5b-9c6e-2a1d0b9f77c3"
 
-  $context = New-Object System.Windows.Forms.ApplicationContext
+  if (-not ("TrayIconHost" -as [type])) {
+    $references = @(
+      [System.Windows.Forms.Form].Assembly.Location
+      [System.Windows.Forms.Message].Assembly.Location
+      [System.Drawing.Icon].Assembly.Location
+      [System.Drawing.Point].Assembly.Location
+    ) | Select-Object -Unique
+    Add-Type -Path (Join-Path $PSScriptRoot "TrayIcon.cs") -ReferencedAssemblies $references
+  }
 
+  # Context menu, opened from the raw tray callback (see TrayIcon.cs).
   $menu = New-Object System.Windows.Forms.ContextMenuStrip
   $itemClose = $menu.Items.Add("Close")
   $itemClose.Add_Click({
     try {
       $script:TrayClosing = $true
       $script:TrayTimer.Stop()
-      $script:TrayNotifyIcon.Visible = $false
+      $script:TrayTrayIcon.Hide()
       [System.Windows.Forms.Application]::ExitThread()
     } catch { }
   })
-  $notify.ContextMenuStrip = $menu
   $script:TrayMenu = $menu
 
-  $notify.Add_MouseClick({
-    param($sender, $eventArgs)
-    try {
-      if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
-        $script:TrayNotifyIcon.ShowBalloonTip(2500, "opencode", $script:TrayTooltip, [System.Windows.Forms.ToolTipIcon]::None)
-      }
-    } catch { }
+  $script:TrayTrayIcon = New-Object TrayIconHost -ArgumentList ([Guid]$script:TrayIconIdentity), "opencode-status-popup"
+  $script:TrayTrayIcon.add_RightClick({
+    try { $script:TrayMenu.Show([System.Windows.Forms.Cursor]::Position) } catch { }
   })
+  $script:TrayTrayIcon.add_LeftClick({
+    try { $script:TrayTrayIcon.ShowBalloon("opencode", $script:TrayTooltip) } catch { }
+  })
+
+  $registered = $script:TrayTrayIcon.Show($script:TrayBlinkFrames["idle"][0].Icon)
+  Write-PopupLog ("tray icon registered={0} guid={1}" -f $registered, $script:TrayIconIdentity)
 
   $timer = New-Object System.Windows.Forms.Timer
   $timer.Interval = 250
@@ -305,12 +273,11 @@ function Show-TrayIcon {
   $timer.Start()
 
   try {
-    [System.Windows.Forms.Application]::Run($context)
+    [System.Windows.Forms.Application]::Run((New-Object System.Windows.Forms.ApplicationContext))
   } finally {
     try { $timer.Stop() } catch { }
-    try { $notify.Visible = $false } catch { }
-    try { $notify.Dispose() } catch { }
-    try { $menu.Dispose() } catch { }
+    try { $script:TrayTrayIcon.Dispose() } catch { }
+    try { $script:TrayMenu.Dispose() } catch { }
     foreach ($frame in $allFrames) {
       try { [void][PopupWin32.Native]::DestroyIcon($frame.Handle) } catch { }
       try { $frame.Icon.Dispose() } catch { }
