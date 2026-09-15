@@ -13,7 +13,7 @@ describe("parseConfig", () => {
       freshSeconds: 20,
       idleSeconds: 25,
       errorHoldSeconds: 90,
-      mark: true,
+      mark: false,
       shellPath: null,
     });
   });
@@ -26,11 +26,11 @@ describe("parseConfig", () => {
     expect(parseConfig({ errorHoldSeconds: "no" }).errorHoldSeconds).toBe(90);
   });
 
-  it("shows the mark unless it is switched off", () => {
-    expect(parseConfig(undefined).mark).toBe(true);
+  it("keeps the mark off the pill unless it is asked for", () => {
+    expect(parseConfig(undefined).mark).toBe(false);
     expect(parseConfig({ mark: true }).mark).toBe(true);
     expect(parseConfig({ mark: false }).mark).toBe(false);
-    expect(parseConfig({ mark: "no" }).mark).toBe(true);
+    expect(parseConfig({ mark: "no" }).mark).toBe(false);
   });
 
   it("accepts the tray mode", () => {

@@ -206,7 +206,7 @@ function New-PopupWindow {
   $script:PopPrefix = $script:PopWindow.FindName("PrefixText")
   $script:PopTip = $script:PopWindow.FindName("TipText")
   $script:PopMark = $script:PopWindow.FindName("Mark")
-  if ($null -eq $script:PopMarkEnabled) { $script:PopMarkEnabled = $true }
+  if ($null -eq $script:PopMarkEnabled) { $script:PopMarkEnabled = $false }
   if (-not $script:PopMarkEnabled) {
     $script:PopMark.Visibility = [System.Windows.Visibility]::Collapsed
   }

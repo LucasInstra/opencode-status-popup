@@ -55,7 +55,7 @@ export function parseConfig(options: unknown): PopupConfig {
       0,
       MAX_ERROR_HOLD_SECONDS,
     ),
-    mark: input.mark !== false,
+    mark: input.mark === true,
     shellPath: parseShellPath(input.shellPath),
   };
 }
