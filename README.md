@@ -1,5 +1,7 @@
 # opencode status popup
 
+![npm](https://img.shields.io/npm/v/opencode-status-popup) ![license](https://img.shields.io/npm/l/opencode-status-popup)
+
 An OpenCode V2 plugin that shows what the agent is doing on a second surface, outside the terminal.
 
 While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. The same surface doubles as an attention light: it turns **amber** while a provider request is being retried, **red** when an execution failed, and **violet with a `?`** when OpenCode is waiting for you to allow something.
@@ -32,13 +34,33 @@ Two renderers, chosen with the `mode` option:
 | Animation | the word types itself out | the mark with a bright wedge sweeping around it while it works, blinking while it waits |
 | Cost | ~45–60 MB (PowerShell + WPF) | ~30–40 MB (PowerShell + WinForms) |
 | Intrusiveness | floats above other windows, but no border, no taskbar button, does not steal focus | nothing covers the screen |
-| Legibility of the word | fully readable | not readable at 16 px, hence the bar |
+| Legibility of the word | fully readable | not readable at 16 px, hence the mark and the tooltip |
 
 Both are a single detached PowerShell process that is started on demand, shared by every OpenCode instance, and exits by itself a few seconds after the last instance goes away.
 
 ## Install
 
 Requires **OpenCode V2** and **Windows** (the host uses WPF/WinForms through PowerShell; `pwsh.exe` or `powershell.exe` from the machine).
+
+### Package
+
+```sh
+opencode plugin add opencode-status-popup
+```
+
+By hand, in `opencode.json(c)`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "opencode-status-popup",
+      "options": { "mode": "window" }
+    }
+  ]
+}
+```
 
 ### Local development copy
 
@@ -50,9 +72,9 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.opencode\plugins\opencode-s
   -Target "C:\path\to\opencode-status-popup"
 ```
 
-### Config entry
+### From a checkout
 
-Point `plugins` at the package or at the entry file in `opencode.json(c)`:
+Point `plugins` at the directory (it resolves the package entry point) or straight at the entry file:
 
 ```jsonc
 {
@@ -60,10 +82,6 @@ Point `plugins` at the package or at the entry file in `opencode.json(c)`:
   "plugins": ["C:/path/to/opencode-status-popup"]
 }
 ```
-
-### Package
-
-Once published, `opencode plugin add opencode-status-popup`.
 
 ## Options
 
