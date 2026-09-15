@@ -1,3 +1,6 @@
+# Dev helper: runs the host in the foreground with all output captured to
+# %TEMP%\opencode-status-popup\test-<mode>.out, which is the easiest way to see
+# a script error. `node scripts/preview.mjs` is the normal way to preview.
 param([string]$Mode = "window", [int]$Busy = 1, [int]$Retry = 0)
 
 $dir = Join-Path $env:TEMP "opencode-status-popup"

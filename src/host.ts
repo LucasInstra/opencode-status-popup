@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { hostInfoPathOf } from "./paths";
+import { hostInfoPathOf, hostMutexName } from "./paths";
 import { listPresenceFiles } from "./presence";
 
 export interface HostSettings {
@@ -97,14 +97,16 @@ export class HostSupervisor {
 
   /**
    * Starts the host with one PowerShell and waits for its first heartbeat.
-   * The Store build of pwsh exits its launcher immediately, so the exit code
-   * says nothing about the host; host.json is the only reliable proof.
+   *
+   * Notes for Windows: the host is spawned without `detached`, because a
+   * detached child silently fails to run here, and the Store build of pwsh
+   * exits its launcher immediately, so the exit code says nothing about the
+   * host. host.json is the only reliable proof that it came up.
    */
   private async tryShell(shell: string): Promise<boolean> {
     const before = this.readInfo()?.updated ?? 0;
     try {
       const child = spawn(shell, this.buildArgs(), {
-        detached: true,
         stdio: "ignore",
         windowsHide: true,
       });
@@ -139,6 +141,8 @@ export class HostSupervisor {
       settings.mode,
       "-StateDir",
       this.options.stateDir,
+      "-MutexName",
+      hostMutexName(this.options.stateDir),
       "-Word",
       settings.word,
       "-TypeMs",

@@ -11,6 +11,7 @@ param(
   [ValidateSet("window", "tray")]
   [string]$Mode = "window",
   [string]$StateDir = "",
+  [string]$MutexName = "Local\opencode-status-popup-host",
   [string]$Word = "opencode",
   [int]$TypeMs = 140,
   [ValidateSet("bottom-right", "bottom-left", "top-right", "top-left")]
@@ -38,7 +39,7 @@ Write-PopupLog ("start mode={0} pid={1} word={2} typeMs={3} position={4} state={
 # rendering every presence file, including the ones from the newer instance.
 # ---------------------------------------------------------------------------
 $createdNew = $false
-$mutex = New-Object System.Threading.Mutex($true, "Local\opencode-status-popup-host", [ref]$createdNew)
+$mutex = New-Object System.Threading.Mutex($true, $MutexName, [ref]$createdNew)
 $holding = $createdNew
 if (-not $createdNew) {
   try {

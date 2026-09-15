@@ -20,6 +20,11 @@ export function hostScriptPath(): string {
   return fileURLToPath(new URL("../host/popup.ps1", import.meta.url));
 }
 
+/** One host per state directory, so tests and custom dirs do not collide. */
+export function hostMutexName(stateDir: string): string {
+  return `Local\\opencode-status-popup-${hash(stateDir)}`;
+}
+
 export function presenceFileOf(stateDir: string, directory: string): string {
   return join(presenceDirOf(stateDir), `${instanceSlug(directory)}.json`);
 }

@@ -18,6 +18,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "smoke": "vitest run tests/smoke.test.ts",
     "preview": "node scripts/preview.mjs",
     "preview:tray": "node scripts/preview.mjs --mode tray",
     "preview:stop": "node scripts/preview.mjs --stop"

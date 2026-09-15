@@ -166,7 +166,17 @@ function hostIsLive() {
 }
 
 async function ensureHost() {
-  if (hostIsLive()) return false;
+  const info = readHostInfo();
+  if (hostIsLive()) {
+    if (info?.mode === options.mode && info?.word === options.word) return false;
+    // the plugin restarts a host whose settings changed; do the same here
+    try {
+      process.kill(info.pid);
+    } catch {
+      // already gone
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
   await spawnHost();
   return true;
 }
@@ -202,7 +212,7 @@ async function spawnHost() {
 function trySpawn(shell, args) {
   return new Promise((resolve) => {
     let settled = false;
-    const child = spawn(shell, args, { detached: true, stdio: "ignore", windowsHide: true });
+    const child = spawn(shell, args, { stdio: "ignore", windowsHide: true });
     const done = (value) => {
       if (settled) return;
       settled = true;

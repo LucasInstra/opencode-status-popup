@@ -45,7 +45,9 @@ export default Plugin.define({
 
     let snapshot = activity.snapshot();
     presence.sync(snapshot);
-    await host.ensure();
+    // Do not block location activation on PowerShell startup; the supervisor
+    // interval keeps trying and reports failures through the log.
+    void host.ensure();
 
     const controller = new AbortController();
     const heartbeat = setInterval(() => {
