@@ -40,6 +40,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "vitest run tests/smoke.test.ts",
+    "prepublishOnly": "npm run typecheck && npm test",
     "docs:images": "pwsh -NoProfile -ExecutionPolicy Bypass -Sta -File scripts/render-docs.ps1",
     "docs:gif": "node scripts/build-gif.mjs",
     "preview": "node scripts/preview.mjs",

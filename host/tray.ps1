@@ -179,6 +179,7 @@ function Show-TrayIcon {
     typeMs = [int]$Settings.typeMs
     fresh  = $script:TrayFresh
     idle   = $script:TrayIdleSeconds
+    mark   = [bool]$Settings.mark
   }
 
   $size = [System.Windows.Forms.SystemInformation]::SmallIconSize.Width

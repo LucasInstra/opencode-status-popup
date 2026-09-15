@@ -1,10 +1,10 @@
 /**
  * Smoke test for the real thing: it loads the plugin, feeds it synthetic
  * OpenCode events and checks that presence files are written and a real
- * PowerShell popup host is started and stopped again.
+ * PowerShell host is started and stopped again, for both renderers.
  *
- * It spawns a visible window/tray icon and needs PowerShell, so it only runs
- * on Windows with SMOKE=1:
+ * It spawns a visible window or a tray icon and needs PowerShell, so it only
+ * runs on Windows with SMOKE=1:
  *
  *   $env:SMOKE=1; npm test
  */
@@ -18,66 +18,95 @@ import { hostInfoPathOf, presenceFileOf } from "../src/paths";
 const enabled = process.platform === "win32" && process.env.SMOKE === "1";
 
 describe.skipIf(!enabled)("plugin smoke", () => {
-  it("drives presence files and the host through a busy to idle cycle", async () => {
-    const stateDir = join(tmpdir(), `opencode-status-popup-smoke-${process.pid}`);
-    rmSync(stateDir, { recursive: true, force: true });
+  it("drives the window host through a busy to idle cycle", async () => {
+    await runCycle("window");
+  }, 60_000);
 
-    const previous = process.env.OPENCODE_STATUS_POPUP_DIR;
-    process.env.OPENCODE_STATUS_POPUP_DIR = stateDir;
-
-    const directory = process.cwd();
-    const presence = presenceFileOf(stateDir, directory);
-    const queue = new EventQueue();
-    const ctx = {
-      options: { mode: "window", idleSeconds: 30 },
-      location: { directory },
-      event: { subscribe: (options?: { signal?: AbortSignal }) => queue.stream(options?.signal) },
-    };
-
-    let cleanup: Awaited<ReturnType<typeof plugin.setup>> = undefined;
-    let hostPid = 0;
-    try {
-      cleanup = await plugin.setup(ctx as never);
-
-      expect(existsSync(presence)).toBe(true);
-      expect(readJson(presence)?.phase).toBe("idle");
-
-      queue.push({ type: "session.status", data: { sessionID: "ses_smoke", status: { type: "busy" } } });
-      const busy = await waitFor(() => {
-        const data = readJson(presence);
-        return data?.busy === 1 ? data : undefined;
-      });
-      expect(busy.phase).toBe("busy");
-
-      queue.push({ type: "session.text.delta", data: { sessionID: "ses_smoke" } });
-      queue.push({ type: "session.retry.scheduled", data: { sessionID: "ses_smoke" } });
-      await waitFor(() => (readJson(presence)?.phase === "retry" ? true : undefined));
-
-      const host = await waitFor(() => {
-        const info = readJson(hostInfoPathOf(stateDir));
-        if (!info || info.mode !== "window") return undefined;
-        if (Date.now() - Number(info.updated) > 8000) return undefined;
-        return info;
-      });
-      hostPid = Number(host.pid);
-      expect(hostPid).toBeGreaterThan(0);
-      expect(isAlive(hostPid)).toBe(true);
-
-      queue.push({ type: "session.idle", data: { sessionID: "ses_smoke" } });
-      await waitFor(() => (readJson(presence)?.phase === "idle" ? true : undefined));
-    } finally {
-      await cleanup?.();
-      if (previous === undefined) delete process.env.OPENCODE_STATUS_POPUP_DIR;
-      else process.env.OPENCODE_STATUS_POPUP_DIR = previous;
-    }
-
-    expect(existsSync(presence)).toBe(false);
-    if (hostPid > 0) {
-      await waitFor(() => (isAlive(hostPid) ? undefined : true));
-    }
-    rmSync(stateDir, { recursive: true, force: true });
+  it("drives the tray host through the same cycle", async () => {
+    const observed = await runCycle("tray");
+    // Proves the Shell_NotifyIcon path (and its C# helper) ran. On a machine
+    // without the shell running the registration can legitimately fail, so only
+    // the attempt is asserted.
+    expect(observed.log).toContain("tray icon registered=");
   }, 60_000);
 });
+
+interface CycleResult {
+  readonly log: string;
+  readonly hostPid: number;
+}
+
+async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
+  const stateDir = join(tmpdir(), `opencode-status-popup-${mode}-${process.pid}`);
+  rmSync(stateDir, { recursive: true, force: true });
+
+  const previous = process.env.OPENCODE_STATUS_POPUP_DIR;
+  process.env.OPENCODE_STATUS_POPUP_DIR = stateDir;
+
+  const directory = process.cwd();
+  const presence = presenceFileOf(stateDir, directory);
+  const queue = new EventQueue();
+  const context = {
+    options: { mode, idleSeconds: 30 },
+    location: { directory },
+    event: { subscribe: (options?: { signal?: AbortSignal }) => queue.stream(options?.signal) },
+  };
+
+  let cleanup: Awaited<ReturnType<typeof plugin.setup>> = undefined;
+  let hostPid = 0;
+  try {
+    cleanup = await plugin.setup(context as never);
+
+    expect(existsSync(presence)).toBe(true);
+    expect(readJson(presence)?.phase).toBe("idle");
+
+    queue.push({ type: "session.status", data: { sessionID: "ses_smoke", status: { type: "busy" } } });
+    const busy = await waitFor(() => {
+      const data = readJson(presence);
+      return data?.busy === 1 ? data : undefined;
+    });
+    expect(busy.phase).toBe("busy");
+
+    queue.push({ type: "session.text.delta", data: { sessionID: "ses_smoke" } });
+    queue.push({ type: "session.retry.scheduled", data: { sessionID: "ses_smoke" } });
+    await waitFor(() => (readJson(presence)?.phase === "retry" ? true : undefined));
+
+    const host = await waitFor(() => {
+      const info = readJson(hostInfoPathOf(stateDir));
+      if (!info || info.mode !== mode) return undefined;
+      if (Date.now() - Number(info.updated) > 8000) return undefined;
+      return info;
+    });
+    hostPid = Number(host.pid);
+    expect(hostPid).toBeGreaterThan(0);
+    expect(isAlive(hostPid)).toBe(true);
+
+    queue.push({ type: "permission.asked", data: { id: "per_smoke", sessionID: "ses_smoke", action: "bash", resources: ["npm test"] } });
+    const waiting = await waitFor(() => {
+      const data = readJson(presence);
+      return data?.phase === "permission" ? data : undefined;
+    });
+    expect(waiting.detail).toBe("bash npm test");
+
+    queue.push({ type: "permission.replied", data: { sessionID: "ses_smoke", requestID: "per_smoke", reply: "once" } });
+    queue.push({ type: "session.idle", data: { sessionID: "ses_smoke" } });
+    await waitFor(() => (readJson(presence)?.phase === "idle" ? true : undefined));
+  } finally {
+    await cleanup?.();
+    if (previous === undefined) delete process.env.OPENCODE_STATUS_POPUP_DIR;
+    else process.env.OPENCODE_STATUS_POPUP_DIR = previous;
+  }
+
+  expect(existsSync(presence)).toBe(false);
+  if (hostPid > 0) await waitFor(() => (isAlive(hostPid) ? undefined : true));
+
+  const logPath = join(stateDir, "host.log");
+  const log = existsSync(logPath) ? readFileSync(logPath, "utf8") : "";
+  expect(log).toContain(`start mode=${mode}`);
+  rmSync(stateDir, { recursive: true, force: true });
+
+  return { log, hostPid };
+}
 
 class EventQueue {
   private readonly queue: unknown[] = [];
@@ -122,10 +151,9 @@ function isAlive(pid: number): boolean {
 
 async function waitFor<T>(check: () => T | undefined, timeoutMs = 15_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
-  let last: T | undefined;
   while (Date.now() < deadline) {
-    last = check();
-    if (last !== undefined) return last;
+    const value = check();
+    if (value !== undefined) return value;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error("timed out waiting for the expected state");

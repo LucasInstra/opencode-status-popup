@@ -33,11 +33,11 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 
 | State | Window | Tray | Meaning |
 |---|---|---|---|
-| `idle` | `opencode`, white, slow breathing | the o, slow blink | nothing is running |
-| `busy` | `opencode` typing itself, blue | the o drawing itself pixel by pixel, blue | the agent is working |
-| `retry` | `opencode` typing itself, amber | the o drawing itself pixel by pixel, amber | a provider request failed and another attempt is scheduled |
-| `error` | `opencode!`, red, breathing | the o, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
-| `permission` | `opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
+| `idle` | `◻ opencode`, white, slow breathing | the o, slow blink | nothing is running |
+| `busy` | `◻ opencode` typing itself, blue | the o drawing itself pixel by pixel, blue | the agent is working |
+| `retry` | `◻ opencode` typing itself, amber | the o drawing itself pixel by pixel, amber | a provider request failed and another attempt is scheduled |
+| `error` | `◻ opencode!`, red, breathing | the o, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
+| `permission` | `◻ opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
 
 Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. In tray mode, a left click shows a balloon with the detail — `needs you: bash git push origin main`, `error: 429 provider.rate-limit` — and lists every project involved.
 
@@ -120,6 +120,7 @@ All options are optional. Defaults shown.
 | `freshSeconds` | `number` | `20` | How long presence data counts as fresh. |
 | `idleSeconds` | `number` | `25` | How long the host waits without any live instance before exiting. |
 | `errorHoldSeconds` | `number` | `90` | How long a failed execution keeps the pill red. Use `0` to keep it until the session works again. |
+| `mark` | `boolean` | `true` | Show the small o mark before the word in the pill window. |
 | `shellPath` | `string` | `null` | Force a specific PowerShell executable. |
 
 ```jsonc

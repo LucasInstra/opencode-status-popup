@@ -12,6 +12,7 @@ param(
   [string]$Mode = "window",
   [string]$StateDir = "",
   [string]$MutexName = "Local\opencode-status-popup-host",
+  [int]$Mark = 1,
   [string]$Word = "opencode",
   [int]$TypeMs = 140,
   [ValidateSet("bottom-right", "bottom-left", "top-right", "top-left")]
@@ -64,6 +65,7 @@ $settings = @{
   typeMs  = $TypeMs
   fresh   = $FreshSeconds
   idle    = $IdleSeconds
+  mark    = ([int]$Mark -ne 0)
   state   = $script:StateDirPath
 }
 

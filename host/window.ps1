@@ -70,6 +70,7 @@ function Set-PopupPhase {
   $script:PopPulseMs = $pulseMs
   $script:PopPulseMin = $pulseMin
   $script:PopTip.Foreground = $accent
+  if ($script:PopMark) { $script:PopMark.Fill = $accent }
   $script:PopShell.BorderBrush = $border
 }
 
@@ -189,6 +190,8 @@ function New-PopupWindow {
       <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.55" Color="#000000" />
     </Border.Effect>
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <Path x:Name="Mark" Data="M0,0 H12 V14 H0 Z M2,2 H10 V12 H2 Z" Fill="#FF7AC0FF"
+            VerticalAlignment="Center" Margin="0,0,9,0" />
       <TextBlock x:Name="PrefixText" FontFamily="Cascadia Mono, Consolas, Courier New"
                  FontSize="19" FontWeight="SemiBold" Foreground="#FFF3F5F7" />
       <TextBlock x:Name="TipText" FontFamily="Cascadia Mono, Consolas, Courier New"
@@ -202,6 +205,11 @@ function New-PopupWindow {
   $script:PopShell = $script:PopWindow.FindName("Shell")
   $script:PopPrefix = $script:PopWindow.FindName("PrefixText")
   $script:PopTip = $script:PopWindow.FindName("TipText")
+  $script:PopMark = $script:PopWindow.FindName("Mark")
+  if ($null -eq $script:PopMarkEnabled) { $script:PopMarkEnabled = $true }
+  if (-not $script:PopMarkEnabled) {
+    $script:PopMark.Visibility = [System.Windows.Visibility]::Collapsed
+  }
 
   $script:PopBlueBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x7A, 0xC0, 0xFF))
   $script:PopAmberBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFF, 0xB8, 0x6B))
@@ -238,12 +246,14 @@ function Show-PopupWindow {
   $script:PopIdleSeconds = [int]$Settings.idle
   $script:PopPosition = $Position
   $script:PopKeepAlive = [bool]$KeepAlive
+  $script:PopMarkEnabled = [bool]$Settings.mark
   $script:PopHostFields = @{
     mode   = "window"
     word   = $script:PopWord
     typeMs = $script:PopTypeMs
     fresh  = $script:PopFreshSeconds
     idle   = $script:PopIdleSeconds
+    mark   = $script:PopMarkEnabled
   }
 
   $window = New-PopupWindow

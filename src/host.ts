@@ -9,6 +9,7 @@ export interface HostSettings {
   readonly typeMs: number;
   readonly fresh: number;
   readonly idle: number;
+  readonly mark: boolean;
 }
 
 export const HOST_FRESH_MS = 8000;
@@ -20,6 +21,7 @@ interface HostInfo {
   typeMs?: number;
   fresh?: number;
   idle?: number;
+  mark?: boolean;
   updated?: number;
 }
 
@@ -143,6 +145,8 @@ export class HostSupervisor {
       this.options.stateDir,
       "-MutexName",
       hostMutexName(this.options.stateDir),
+      "-Mark",
+      settings.mark ? "1" : "0",
       "-Word",
       settings.word,
       "-TypeMs",
@@ -183,7 +187,8 @@ export class HostSupervisor {
       info.word === settings.word &&
       info.typeMs === settings.typeMs &&
       info.fresh === settings.fresh &&
-      info.idle === settings.idle
+      info.idle === settings.idle &&
+      info.mark === settings.mark
     );
   }
 

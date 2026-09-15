@@ -38,6 +38,7 @@ export default Plugin.define({
         typeMs: config.typeMs,
         fresh: config.freshSeconds,
         idle: config.idleSeconds,
+        mark: config.mark,
       },
       shellPath: config.shellPath,
       log: (message) => console.error(`[${PLUGIN_ID}] ${message}`),
