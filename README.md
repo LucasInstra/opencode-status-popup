@@ -208,6 +208,16 @@ npm run preview:tray -- --keep
 
 `pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-window.out`, which is the quickest way to read a script error.
 
+### Debugging inside OpenCode
+
+Set `OPENCODE_STATUS_POPUP_DEBUG=1` before starting OpenCode and the plugin traces every event it accepts, with the phase it produced and whether the event belonged to this location, to `%TEMP%\opencode-status-popup\plugin.log`:
+
+```powershell
+$env:OPENCODE_STATUS_POPUP_DEBUG = "1"; opencode
+```
+
+The host side logs to `%TEMP%\opencode-status-popup\host.log` (see below).
+
 `npm run docs:images` re-renders `docs/*.png` from the real XAML (off screen, so no screen capture and no desktop in the images) and dumps the raw frames; `npm run docs:gif` turns those frames into `docs/typing.gif` and `docs/tray.gif`.
 
 The host logs to `%TEMP%\opencode-status-popup\host.log`, which is the first place to look when the popup does not show up:

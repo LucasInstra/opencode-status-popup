@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin";
 import { parseConfig } from "./config";
+import { createDebugLog } from "./debug";
 import { HostSupervisor } from "./host";
 import { hostScriptPath, instanceSlug, presenceFileOf, projectNameOf, statusStateDir } from "./paths";
 import { PresenceWriter } from "./presence";
@@ -21,6 +22,8 @@ export default Plugin.define({
     const directory = ctx.location.directory;
     const stateDir = statusStateDir(process.env.OPENCODE_STATUS_POPUP_DIR);
     const project = projectNameOf(directory);
+    const trace = createDebugLog(stateDir);
+    trace(`setup directory=${directory} project=${project} mode=${config.mode} pid=${process.pid}`);
 
     const activity = new SessionActivity({ errorHoldMs: config.errorHoldSeconds * 1000 });
     const presence = new PresenceWriter(presenceFileOf(stateDir, directory), {
@@ -64,13 +67,17 @@ export default Plugin.define({
     void (async () => {
       try {
         for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
-          if (!belongsToLocation(event, directory)) continue;
-          snapshot = activity.apply(event) ?? snapshot;
-          presence.sync(snapshot);
+          const accepted = belongsToLocation(event, directory);
+          if (accepted) {
+            snapshot = activity.apply(event) ?? snapshot;
+            presence.sync(snapshot);
+          }
+          trace(`event ${event.type} accepted=${accepted} phase=${snapshot.phase} busy=${snapshot.busy}`);
         }
       } catch (error) {
         if (controller.signal.aborted) return;
         console.error(`[${PLUGIN_ID}] event stream stopped: ${String(error)}`);
+        trace(`stream stopped: ${String(error)}`);
       }
     })();
 
