@@ -1,11 +1,31 @@
 {
   "name": "opencode-status-popup",
   "version": "0.1.0",
-  "description": "Always-on-top status pill (or tray icon) for OpenCode that types \"opencode\" while an agent is thinking.",
+  "description": "Always-on-top status pill (or tray icon) for OpenCode: types the word out while the agent works, amber on provider retries, red on failures, violet when a permission is waiting for you.",
   "type": "module",
   "license": "MIT",
+  "author": "LucasInstra",
+  "homepage": "https://github.com/LucasInstra/opencode-status-popup#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LucasInstra/opencode-status-popup.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LucasInstra/opencode-status-popup/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "status",
+    "always-on-top",
+    "tray",
+    "windows"
+  ],
   "engines": {
     "opencode": ">=2"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": "./src/index.ts"
@@ -20,6 +40,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "vitest run tests/smoke.test.ts",
+    "docs:images": "pwsh -NoProfile -ExecutionPolicy Bypass -Sta -File scripts/render-docs.ps1",
+    "docs:gif": "node scripts/build-gif.mjs",
     "preview": "node scripts/preview.mjs",
     "preview:tray": "node scripts/preview.mjs --mode tray",
     "preview:stop": "node scripts/preview.mjs --stop"
@@ -29,6 +51,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
+    "gifenc": "^1.0.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.7"
   }

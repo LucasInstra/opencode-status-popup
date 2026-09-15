@@ -4,6 +4,8 @@ An OpenCode V2 plugin that shows what the agent is doing on a second surface, ou
 
 While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. The same surface doubles as an attention light: it turns **amber** while a provider request is being retried, **red** when an execution failed, and **violet with a `?`** when OpenCode is waiting for you to allow something.
 
+![the pill typing opencode](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/typing.gif)
+
 ## States
 
 | State | Window | Tray | Meaning |
@@ -15,6 +17,12 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 | `permission` | `opencode?`, violet, faster breathing | violet icon, fast blink | OpenCode is blocked waiting for a permission decision from you |
 
 Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. The tray tooltip and the tray balloon carry the detail (`needs you: bash git push origin main`, `error: 429 provider.rate-limit`), which is also where several projects are listed.
+
+![the five states](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/states.png)
+
+Tray icons for the same states, the bar filling up while the agent works and blinking while it waits for you, at 8x and at real size:
+
+![tray icons in every state](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.png)
 
 Two renderers, chosen with the `mode` option:
 
@@ -129,6 +137,8 @@ npm run preview:stop
 `npm run preview` is the fastest way to iterate on the visuals: it writes the same presence files the plugin writes, so the host cannot tell the difference. Useful flags: `--mode window|tray`, `--state busy|idle|retry|error|permission`, `--detail '<text>'`, `--watch` (cycles the states), `--word`, `--type`, `--seconds`.
 
 `pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-window.out`, which is the quickest way to read a script error.
+
+`npm run docs:images` re-renders `docs/*.png` from the real XAML (off screen, so no screen capture and no desktop in the images) and dumps the raw frames; `npm run docs:gif` turns those frames into `docs/typing.gif`.
 
 The host logs to `%TEMP%\opencode-status-popup\host.log`, which is the first place to look when the popup does not show up:
 

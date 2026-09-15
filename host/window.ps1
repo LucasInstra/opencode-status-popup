@@ -172,31 +172,8 @@ function Update-PopupState {
   }
 }
 
-function Show-PopupWindow {
-  param(
-    [hashtable]$Settings,
-    [string]$Position,
-    [switch]$KeepAlive
-  )
-
+function New-PopupWindow {
   Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-
-  try { [void][PopupWin32.Native]::SetProcessDPIAware() } catch { }
-
-  $script:PopWord = $Settings.word
-  if ([string]::IsNullOrEmpty($script:PopWord)) { $script:PopWord = "opencode" }
-  $script:PopTypeMs = [int]$Settings.typeMs
-  $script:PopFreshSeconds = [int]$Settings.fresh
-  $script:PopIdleSeconds = [int]$Settings.idle
-  $script:PopPosition = $Position
-  $script:PopKeepAlive = [bool]$KeepAlive
-  $script:PopHostFields = @{
-    mode   = "window"
-    word   = $script:PopWord
-    typeMs = $script:PopTypeMs
-    fresh  = $script:PopFreshSeconds
-    idle   = $script:PopIdleSeconds
-  }
 
   $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -241,6 +218,35 @@ function Show-PopupWindow {
   $script:PopSuffix = ""
   $script:PopPulseMs = 2400
   $script:PopPulseMin = 0.60
+
+  return $script:PopWindow
+}
+
+function Show-PopupWindow {
+  param(
+    [hashtable]$Settings,
+    [string]$Position,
+    [switch]$KeepAlive
+  )
+
+  try { [void][PopupWin32.Native]::SetProcessDPIAware() } catch { }
+
+  $script:PopWord = $Settings.word
+  if ([string]::IsNullOrEmpty($script:PopWord)) { $script:PopWord = "opencode" }
+  $script:PopTypeMs = [int]$Settings.typeMs
+  $script:PopFreshSeconds = [int]$Settings.fresh
+  $script:PopIdleSeconds = [int]$Settings.idle
+  $script:PopPosition = $Position
+  $script:PopKeepAlive = [bool]$KeepAlive
+  $script:PopHostFields = @{
+    mode   = "window"
+    word   = $script:PopWord
+    typeMs = $script:PopTypeMs
+    fresh  = $script:PopFreshSeconds
+    idle   = $script:PopIdleSeconds
+  }
+
+  $window = New-PopupWindow
 
   $script:PopIndex = 0
   $script:PopHold = 0
