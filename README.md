@@ -2,7 +2,19 @@
 
 An OpenCode V2 plugin that shows what the agent is doing on a second surface, outside the terminal.
 
-While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. When everything is idle the word stays complete and **breathes slowly** (a soft opacity pulse). If a provider request is being retried, the accent turns amber.
+While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. The same surface doubles as an attention light: it turns **amber** while a provider request is being retried, **red** when an execution failed, and **violet with a `?`** when OpenCode is waiting for you to allow something.
+
+## States
+
+| State | Window | Tray | Meaning |
+|---|---|---|---|
+| `idle` | `opencode`, white, slow breathing | full bar, slow blink | nothing is running |
+| `busy` | `opencode` typing itself, blue | blue bar filling up | the agent is working |
+| `retry` | `opencode` typing itself, amber | amber bar filling up | a provider request failed and another attempt is scheduled |
+| `error` | `opencode!`, red, breathing | red icon, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
+| `permission` | `opencode?`, violet, faster breathing | violet icon, fast blink | OpenCode is blocked waiting for a permission decision from you |
+
+Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. The tray tooltip and the tray balloon carry the detail (`needs you: bash git push origin main`, `error: 429 provider.rate-limit`), which is also where several projects are listed.
 
 Two renderers, chosen with the `mode` option:
 
@@ -58,6 +70,7 @@ All options are optional. Defaults shown.
 | `position` | `"bottom-right" \| "bottom-left" \| "top-right" \| "top-left"` | `"bottom-right"` | Where the pill appears the first time. After you drag it, the position is remembered. |
 | `freshSeconds` | `number` | `20` | How long presence data counts as fresh. |
 | `idleSeconds` | `number` | `25` | How long the host waits without any live instance before exiting. |
+| `errorHoldSeconds` | `number` | `90` | How long a failed execution keeps the pill red. Use `0` to keep it until the session works again. |
 | `shellPath` | `string` | `null` | Force a specific PowerShell executable. |
 
 ```jsonc
@@ -96,7 +109,7 @@ OpenCode server
                         (named mutex per state dir) aggregates them and paints
 ```
 
-- **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
+- **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Permission prompts come from `permission.asked` / `permission.replied`. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
 - **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed.
 - **Tray overflow**: Windows puts new tray icons in the hidden overflow area by default. Drag it onto the taskbar to keep it visible.
@@ -113,7 +126,7 @@ npm run preview:tray
 npm run preview:stop
 ```
 
-`npm run preview` is the fastest way to iterate on the visuals: it writes the same presence files the plugin writes, so the host cannot tell the difference. Useful flags: `--mode window|tray`, `--state busy|idle|retry`, `--watch` (cycles the states), `--word`, `--type`, `--seconds`.
+`npm run preview` is the fastest way to iterate on the visuals: it writes the same presence files the plugin writes, so the host cannot tell the difference. Useful flags: `--mode window|tray`, `--state busy|idle|retry|error|permission`, `--detail '<text>'`, `--watch` (cycles the states), `--word`, `--type`, `--seconds`.
 
 `pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-window.out`, which is the quickest way to read a script error.
 

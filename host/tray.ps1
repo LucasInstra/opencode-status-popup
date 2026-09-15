@@ -6,8 +6,11 @@ function New-TrayFrame {
   param(
     [int]$Size,
     [double]$Fill,
-    [int]$Alpha
+    [int]$Alpha,
+    [int[]]$Rgb
   )
+
+  if (-not $Rgb -or $Rgb.Count -lt 3) { $Rgb = @(0x7A, 0xC0, 0xFF) }
 
   $bmp = New-Object System.Drawing.Bitmap($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
   $graphics = [System.Drawing.Graphics]::FromImage($bmp)
@@ -31,7 +34,7 @@ function New-TrayFrame {
       $path.AddArc($rect.X, ($rect.Bottom - $d), $d, $d, 90, 90)
       $path.CloseFigure()
 
-      $color = [System.Drawing.Color]::FromArgb($Alpha, 0x7A, 0xC0, 0xFF)
+      $color = [System.Drawing.Color]::FromArgb($Alpha, $Rgb[0], $Rgb[1], $Rgb[2])
 
       if ($Fill -gt 0) {
         $state = $graphics.Save()
@@ -59,19 +62,30 @@ function New-TrayFrame {
 }
 
 function Update-TrayProgressIcon {
-  if ($script:TrayPhase -eq "idle") {
-    $script:TrayProgress = 0
-    $script:TrayBlink = ($script:TrayBlink + 1) % 8
-    if ($script:TrayBlink -lt 5) {
-      $script:TrayNotifyIcon.Icon = $script:TrayIdleBright.Icon
-    } else {
-      $script:TrayNotifyIcon.Icon = $script:TrayIdleDim.Icon
-    }
+  $phase = $script:TrayPhase
+
+  # Working phases animate the bar filling up as the word types itself out.
+  if ($phase -eq "busy" -or $phase -eq "retry") {
+    $script:TrayProgress = ($script:TrayProgress % $script:TraySteps) + 1
+    $script:TrayNotifyIcon.Icon = $script:TrayFillFrames[$phase][$script:TrayProgress - 1].Icon
     return
   }
 
-  $script:TrayProgress = ($script:TrayProgress % $script:TraySteps) + 1
-  $script:TrayNotifyIcon.Icon = $script:TrayBusyFrames[$script:TrayProgress - 1].Icon
+  # Waiting phases blink, faster the more the user is needed.
+  $script:TrayProgress = 0
+  $cadence = 4
+  if ($phase -eq "permission") { $cadence = 1 }
+  elseif ($phase -eq "error") { $cadence = 2 }
+
+  $frames = $script:TrayBlinkFrames[$phase]
+  if (-not $frames) { $frames = $script:TrayBlinkFrames["idle"] }
+
+  $script:TrayBlink = ($script:TrayBlink + 1) % ($cadence * 2)
+  if ($script:TrayBlink -lt $cadence) {
+    $script:TrayNotifyIcon.Icon = $frames[0].Icon
+  } else {
+    $script:TrayNotifyIcon.Icon = $frames[1].Icon
+  }
 }
 
 function Update-TrayTick {
@@ -102,7 +116,8 @@ function Update-TrayTick {
   Update-TrayProgressIcon
 
   $visible = $script:TrayWord
-  if ($script:TrayPhase -ne "idle" -and $script:TrayProgress -lt $script:TrayWord.Length) {
+  $working = $script:TrayPhase -eq "busy" -or $script:TrayPhase -eq "retry"
+  if ($working -and $script:TrayProgress -lt $script:TrayWord.Length) {
     $visible = $script:TrayWord.Substring(0, $script:TrayProgress)
   }
 
@@ -139,14 +154,37 @@ function Show-TrayIcon {
   $size = [System.Windows.Forms.SystemInformation]::SmallIconSize.Width
   if ($size -lt 16) { $size = 16 }
 
-  $script:TraySteps = 8
-  $script:TrayBusyFrames = @()
-  for ($i = 1; $i -le $script:TraySteps; $i++) {
-    $script:TrayBusyFrames += (New-TrayFrame -Size $size -Fill ([double]$i / $script:TraySteps) -Alpha 255)
+  $palette = @{
+    busy       = @(0x7A, 0xC0, 0xFF)
+    retry      = @(0xFF, 0xB8, 0x6B)
+    error      = @(0xFF, 0x7A, 0x7A)
+    permission = @(0xC8, 0x96, 0xFF)
+    idle       = @(0x7A, 0xC0, 0xFF)
   }
-  $script:TrayIdleBright = New-TrayFrame -Size $size -Fill 1.0 -Alpha 235
-  $script:TrayIdleDim = New-TrayFrame -Size $size -Fill 1.0 -Alpha 90
-  $allFrames = @($script:TrayBusyFrames) + @($script:TrayIdleBright, $script:TrayIdleDim)
+
+  $script:TraySteps = 8
+  $script:TrayFillFrames = @{}
+  foreach ($name in @("busy", "retry")) {
+    $frames = @()
+    for ($i = 1; $i -le $script:TraySteps; $i++) {
+      $frames += (New-TrayFrame -Size $size -Fill ([double]$i / $script:TraySteps) -Alpha 255 -Rgb $palette[$name])
+    }
+    $script:TrayFillFrames[$name] = $frames
+  }
+
+  $script:TrayBlinkFrames = @{}
+  foreach ($name in @("idle", "error", "permission")) {
+    # Waiting states keep more brightness while blinking so the colour stays readable.
+    $dimAlpha = 85
+    if ($name -ne "idle") { $dimAlpha = 130 }
+    $bright = New-TrayFrame -Size $size -Fill 1.0 -Alpha 235 -Rgb $palette[$name]
+    $dim = New-TrayFrame -Size $size -Fill 1.0 -Alpha $dimAlpha -Rgb $palette[$name]
+    $script:TrayBlinkFrames[$name] = @($bright, $dim)
+  }
+
+  $allFrames = @()
+  foreach ($group in $script:TrayFillFrames.Values) { $allFrames += $group }
+  foreach ($group in $script:TrayBlinkFrames.Values) { $allFrames += $group }
 
   $script:TrayProgress = 0
   $script:TrayBlink = 0
@@ -157,7 +195,7 @@ function Show-TrayIcon {
   $script:TrayTooltip = "opencode"
 
   $notify = New-Object System.Windows.Forms.NotifyIcon
-  $notify.Icon = $script:TrayIdleBright.Icon
+  $notify.Icon = $script:TrayBlinkFrames["idle"][0].Icon
   $notify.Text = $script:TrayTooltip
   $notify.Visible = $true
   $script:TrayNotifyIcon = $notify

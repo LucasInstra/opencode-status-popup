@@ -111,10 +111,7 @@ function Get-AggregateState {
   param([int]$FreshSeconds = 20)
 
   $now = Get-Timestamp
-  $busy = 0
-  $retry = 0
-  $writers = 0
-  $projects = New-Object System.Collections.Generic.List[string]
+  $entries = New-Object System.Collections.Generic.List[object]
 
   $files = @()
   try {
@@ -137,31 +134,53 @@ function Get-AggregateState {
       continue
     }
     if ($null -eq $entry -or $null -eq $entry.updated) { continue }
+    if (($now - [double]$entry.updated) -gt ($FreshSeconds * 1000)) { continue }
 
-    $updated = [double]$entry.updated
-    if (($now - $updated) -gt ($FreshSeconds * 1000)) { continue }
+    $entries.Add($entry)
+  }
 
-    $writers++
+  $busy = 0
+  $retry = 0
+  $errors = 0
+  $permissions = 0
+  $projects = New-Object System.Collections.Generic.List[string]
+
+  foreach ($entry in $entries) {
     $busy += [int]$entry.busy
     $retry += [int]$entry.retry
+    $errors += [int]$entry.errors
+    $permissions += [int]$entry.permissions
     if ($entry.project) {
       $name = [string]$entry.project
       if (-not $projects.Contains($name)) { $projects.Add($name) }
     }
   }
 
+  # Lowest priority first, so the highest one wins.
   $phase = "idle"
-  if ($busy -gt 0) {
-    if ($retry -gt 0) { $phase = "retry" } else { $phase = "busy" }
+  if ($busy -gt 0) { $phase = "busy" }
+  if ($retry -gt 0) { $phase = "retry" }
+  if ($errors -gt 0) { $phase = "error" }
+  if ($permissions -gt 0) { $phase = "permission" }
+
+  $detail = ""
+  foreach ($entry in $entries) {
+    if ($entry.phase -eq $phase -and $entry.detail) {
+      $detail = [string]$entry.detail
+      break
+    }
   }
 
   return [pscustomobject]@{
-    Online   = ($writers -gt 0)
-    Writers  = $writers
-    Busy     = $busy
-    Retry    = $retry
-    Phase    = $phase
-    Projects = @($projects)
+    Online      = ($entries.Count -gt 0)
+    Writers     = $entries.Count
+    Busy        = $busy
+    Retry       = $retry
+    Errors      = $errors
+    Permissions = $permissions
+    Phase       = $phase
+    Detail      = $detail
+    Projects    = @($projects)
   }
 }
 
@@ -169,7 +188,7 @@ function Get-AggregateSignature {
   param($Aggregate)
 
   $projects = @($Aggregate.Projects) -join ","
-  return "{0}|{1}|{2}|{3}" -f $Aggregate.Phase, $Aggregate.Busy, $Aggregate.Writers, $projects
+  return "{0}|{1}|{2}|{3}|{4}|{5}|{6}" -f $Aggregate.Phase, $Aggregate.Busy, $Aggregate.Retry, $Aggregate.Errors, $Aggregate.Permissions, $Aggregate.Detail, $projects
 }
 
 function Format-AggregateTooltip {
@@ -179,18 +198,27 @@ function Format-AggregateTooltip {
     [string]$ProgressWord
   )
 
-  $where = ""
+  $where = $Word
   if ($Aggregate.Projects.Count -gt 0) {
-    $where = " - " + ($Aggregate.Projects -join ", ")
+    $where = ($Aggregate.Projects -join ", ")
   }
 
+  $detail = [string]$Aggregate.Detail
   switch ($Aggregate.Phase) {
-    "busy" { $state = "digitando " + $ProgressWord }
-    "retry" { $state = "tentando de novo..." }
-    default { $state = $Word + " (ocioso)" }
+    "permission" {
+      $state = "needs you"
+      if ($detail) { $state = "needs you: " + $detail }
+    }
+    "error" {
+      $state = "error"
+      if ($detail) { $state = "error: " + $detail }
+    }
+    "retry" { $state = "retrying " + $ProgressWord }
+    "busy" { $state = "typing " + $ProgressWord }
+    default { $state = "idle" }
   }
 
-  $text = "opencode$where - $state"
+  $text = "$where - $state"
   if ($text.Length -gt 63) { $text = $text.Substring(0, 60) + "..." }
   return $text
 }

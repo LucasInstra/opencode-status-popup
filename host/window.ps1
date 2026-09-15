@@ -5,35 +5,72 @@
 # function.
 
 function Set-PopupWord {
-  param([int]$Count, [bool]$Idle)
+  param(
+    [int]$Count,
+    [bool]$Static,
+    [string]$Suffix = ""
+  )
+
+  if ($Static) {
+    if ($script:PopPrefix.Text -ne $script:PopWord) { $script:PopPrefix.Text = $script:PopWord }
+    if ($script:PopTip.Text -ne $Suffix) { $script:PopTip.Text = $Suffix }
+    $script:PopTip.Opacity = 1.0
+    return
+  }
 
   if ($Count -lt 0) { $Count = 0 }
   if ($Count -gt $script:PopWord.Length) { $Count = $script:PopWord.Length }
 
   $prefix = ""
   $tip = ""
-  if ($Idle) {
-    $prefix = $script:PopWord
-  } elseif ($Count -gt 0) {
+  if ($Count -gt 0) {
     $prefix = $script:PopWord.Substring(0, $Count - 1)
     $tip = $script:PopWord.Substring($Count - 1, 1)
   }
 
   if ($script:PopPrefix.Text -ne $prefix) { $script:PopPrefix.Text = $prefix }
   if ($script:PopTip.Text -ne $tip) { $script:PopTip.Text = $tip }
-  if ($Idle) { $script:PopTip.Opacity = 1.0 }
 }
 
 function Set-PopupPhase {
   param($Aggregate)
 
-  if ($Aggregate.Phase -eq "retry") {
-    $script:PopTip.Foreground = $script:PopWarnBrush
-    $script:PopShell.BorderBrush = $script:PopWarnBorder
-  } else {
-    $script:PopTip.Foreground = $script:PopAccentBrush
-    $script:PopShell.BorderBrush = $script:PopSoftBorder
+  $accent = $script:PopWhiteBrush
+  $border = $script:PopSoftBorder
+  $suffix = ""
+  $pulseMs = 2400
+  $pulseMin = 0.60
+
+  switch ($Aggregate.Phase) {
+    "permission" {
+      $accent = $script:PopVioletBrush
+      $border = $script:PopVioletBorder
+      $suffix = "?"
+      $pulseMs = 1000
+      $pulseMin = 0.70
+    }
+    "error" {
+      $accent = $script:PopRedBrush
+      $border = $script:PopRedBorder
+      $suffix = "!"
+      $pulseMs = 1500
+      $pulseMin = 0.72
+    }
+    "retry" {
+      $accent = $script:PopAmberBrush
+      $border = $script:PopAmberBorder
+    }
+    "busy" {
+      $accent = $script:PopBlueBrush
+    }
   }
+
+  $script:PopAccent = $accent
+  $script:PopSuffix = $suffix
+  $script:PopPulseMs = $pulseMs
+  $script:PopPulseMin = $pulseMin
+  $script:PopTip.Foreground = $accent
+  $script:PopShell.BorderBrush = $border
 }
 
 function Set-PopupPosition {
@@ -82,12 +119,15 @@ function Set-PopupPosition {
 function Update-PopupAnimation {
   if (-not $script:PopVisible -or $script:PopClosing) { return }
 
-  if ($script:PopState.Phase -eq "idle") {
-    $script:PopOpacityT = ($script:PopOpacityT + $script:PopTypeMs) % 2400
-    $pulse = 0.60 + 0.40 * (0.5 + 0.5 * [Math]::Cos(2 * [Math]::PI * $script:PopOpacityT / 2400))
-    $script:PopWindow.Opacity = $pulse
-    $script:PopIndex = $script:PopWord.Length
-    Set-PopupWord -Count $script:PopIndex -Idle $true
+  $phase = $script:PopState.Phase
+
+  # States that are not "work in progress": show the whole word and breathe.
+  if ($phase -eq "idle" -or $phase -eq "error" -or $phase -eq "permission") {
+    $period = $script:PopPulseMs
+    $script:PopOpacityT = ($script:PopOpacityT + $script:PopTypeMs) % $period
+    $wave = 0.5 + 0.5 * [Math]::Cos(2 * [Math]::PI * $script:PopOpacityT / $period)
+    $script:PopWindow.Opacity = $script:PopPulseMin + ((1.0 - $script:PopPulseMin) * $wave)
+    Set-PopupWord -Count $script:PopWord.Length -Static $true -Suffix $script:PopSuffix
     return
   }
 
@@ -104,7 +144,7 @@ function Update-PopupAnimation {
   } else {
     $script:PopIndex++
   }
-  Set-PopupWord -Count $script:PopIndex -Idle $false
+  Set-PopupWord -Count $script:PopIndex -Static $false
 }
 
 function Update-PopupState {
@@ -186,16 +226,27 @@ function Show-PopupWindow {
   $script:PopPrefix = $script:PopWindow.FindName("PrefixText")
   $script:PopTip = $script:PopWindow.FindName("TipText")
 
-  $script:PopAccentBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x7A, 0xC0, 0xFF))
-  $script:PopWarnBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFF, 0xB8, 0x6B))
+  $script:PopBlueBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0x7A, 0xC0, 0xFF))
+  $script:PopAmberBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFF, 0xB8, 0x6B))
+  $script:PopRedBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xFF, 0x7A, 0x7A))
+  $script:PopVioletBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xC8, 0x96, 0xFF))
+  $script:PopWhiteBrush = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(0xF3, 0xF5, 0xF7))
+
   $script:PopSoftBorder = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x30, 0xFF, 0xFF, 0xFF))
-  $script:PopWarnBorder = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x66, 0xFF, 0xB8, 0x6B))
+  $script:PopAmberBorder = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x88, 0xFF, 0xB8, 0x6B))
+  $script:PopRedBorder = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x88, 0xFF, 0x7A, 0x7A))
+  $script:PopVioletBorder = New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromArgb(0x88, 0xC8, 0x96, 0xFF))
+
+  $script:PopAccent = $script:PopWhiteBrush
+  $script:PopSuffix = ""
+  $script:PopPulseMs = 2400
+  $script:PopPulseMin = 0.60
 
   $script:PopIndex = 0
   $script:PopHold = 0
   $script:PopBlink = 0
   $script:PopOpacityT = 0.0
-  $script:PopState = [pscustomobject]@{ Phase = "idle"; Busy = 0; Retry = 0; Writers = 0; Projects = @() }
+  $script:PopState = [pscustomobject]@{ Phase = "idle"; Busy = 0; Retry = 0; Errors = 0; Permissions = 0; Detail = ""; Writers = 0; Projects = @() }
   $script:PopSignature = ""
   $script:PopMissingTicks = 0
   $script:PopHeartbeatTicks = 0

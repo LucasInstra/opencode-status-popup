@@ -22,7 +22,7 @@ export default Plugin.define({
     const stateDir = statusStateDir(process.env.OPENCODE_STATUS_POPUP_DIR);
     const project = projectNameOf(directory);
 
-    const activity = new SessionActivity();
+    const activity = new SessionActivity({ errorHoldMs: config.errorHoldSeconds * 1000 });
     const presence = new PresenceWriter(presenceFileOf(stateDir, directory), {
       instance: instanceSlug(directory),
       project,

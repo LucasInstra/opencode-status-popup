@@ -12,8 +12,17 @@ describe("parseConfig", () => {
       position: "bottom-right",
       freshSeconds: 20,
       idleSeconds: 25,
+      errorHoldSeconds: 90,
       shellPath: null,
     });
+  });
+
+  it("accepts the error hold option, including zero", () => {
+    expect(parseConfig({ errorHoldSeconds: 300 }).errorHoldSeconds).toBe(300);
+    expect(parseConfig({ errorHoldSeconds: 0 }).errorHoldSeconds).toBe(0);
+    expect(parseConfig({ errorHoldSeconds: -5 }).errorHoldSeconds).toBe(0);
+    expect(parseConfig({ errorHoldSeconds: 99_999 }).errorHoldSeconds).toBe(3600);
+    expect(parseConfig({ errorHoldSeconds: "no" }).errorHoldSeconds).toBe(90);
   });
 
   it("accepts the tray mode", () => {

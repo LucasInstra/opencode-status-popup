@@ -30,9 +30,10 @@ if (options.stop) {
 
 mkdirSync(presenceDir, { recursive: true });
 
-let busy = options.state === "busy" || options.state === "retry";
-let retry = options.state === "retry";
 const project = "preview";
+const workingStates = new Set(["busy", "retry"]);
+let state = options.state;
+const defaultDetail = state === "error" ? "429 provider.rate-limit" : state === "permission" ? "bash git status" : "";
 
 writePresence();
 startHeartbeat();
@@ -53,15 +54,13 @@ if (options.seconds > 0) {
 }
 
 if (options.watch) {
-  const cycle = ["busy", "retry", "idle"];
+  const cycle = ["busy", "retry", "error", "permission", "idle"];
   let index = 0;
   setInterval(() => {
     index = (index + 1) % cycle.length;
-    const next = cycle[index];
-    busy = next !== "idle";
-    retry = next === "retry";
+    state = cycle[index];
     writePresence();
-    console.log(`state: ${next}`);
+    console.log(`state: ${state}`);
   }, 6000);
 }
 
@@ -77,6 +76,7 @@ function parseArgs(args) {
   const parsed = {
     mode: "window",
     state: "busy",
+    detail: undefined,
     word: "opencode",
     type: 140,
     watch: false,
@@ -96,9 +96,12 @@ function parseArgs(args) {
         break;
       case "--state": {
         const value = takeValue();
-        parsed.state = ["busy", "idle", "retry"].includes(value) ? value : "busy";
+        parsed.state = ["busy", "idle", "retry", "error", "permission"].includes(value) ? value : "busy";
         break;
       }
+      case "--detail":
+        parsed.detail = takeValue() ?? undefined;
+        break;
       case "--word":
         parsed.word = takeValue() ?? parsed.word;
         break;
@@ -132,8 +135,12 @@ function writePresence() {
     project,
     directory: root,
     mode: options.mode,
-    busy: busy ? 1 : 0,
-    retry: retry ? 1 : 0,
+    phase: state,
+    busy: workingStates.has(state) ? 1 : 0,
+    retry: state === "retry" ? 1 : 0,
+    errors: state === "error" ? 1 : 0,
+    permissions: state === "permission" ? 1 : 0,
+    detail: options.detail ?? defaultDetail,
     updated: Date.now(),
   };
   const tmp = `${presenceFile}.tmp`;

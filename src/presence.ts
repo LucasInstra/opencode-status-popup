@@ -26,7 +26,7 @@ export class PresenceWriter {
 
   /** Writes only when the observable state changed. Returns true when it did. */
   sync(snapshot: ActivitySnapshot, now = Date.now()): boolean {
-    const signature = `${snapshot.phase}|${snapshot.busy}|${snapshot.retry}|${this.meta.mode}`;
+    const signature = `${snapshot.phase}|${snapshot.busy}|${snapshot.retry}|${snapshot.errors}|${snapshot.permissions}|${snapshot.detail}|${this.meta.mode}`;
     if (signature === this.signature) return false;
     this.signature = signature;
     this.write(snapshot, now);
@@ -58,6 +58,9 @@ export class PresenceWriter {
       phase: snapshot.phase,
       busy: snapshot.busy,
       retry: snapshot.retry,
+      errors: snapshot.errors,
+      permissions: snapshot.permissions,
+      detail: snapshot.detail,
       updated: now,
     };
     try {

@@ -9,6 +9,7 @@ export interface PopupConfig {
   readonly position: PopupPosition;
   readonly freshSeconds: number;
   readonly idleSeconds: number;
+  readonly errorHoldSeconds: number;
   readonly shellPath: string | null;
 }
 
@@ -16,6 +17,7 @@ export const DEFAULT_WORD = "opencode";
 export const DEFAULT_TYPE_MS = 140;
 export const DEFAULT_FRESH_SECONDS = 20;
 export const DEFAULT_IDLE_SECONDS = 25;
+export const DEFAULT_ERROR_HOLD_SECONDS = 90;
 
 const MIN_TYPE_MS = 40;
 const MAX_TYPE_MS = 2000;
@@ -23,6 +25,7 @@ const MIN_FRESH_SECONDS = 5;
 const MAX_FRESH_SECONDS = 600;
 const MIN_IDLE_SECONDS = 5;
 const MAX_IDLE_SECONDS = 3600;
+const MAX_ERROR_HOLD_SECONDS = 3600;
 const MAX_WORD_LENGTH = 24;
 
 export function parseConfig(options: unknown): PopupConfig {
@@ -44,6 +47,12 @@ export function parseConfig(options: unknown): PopupConfig {
       DEFAULT_IDLE_SECONDS,
       MIN_IDLE_SECONDS,
       MAX_IDLE_SECONDS,
+    ),
+    errorHoldSeconds: parseNumber(
+      input.errorHoldSeconds,
+      DEFAULT_ERROR_HOLD_SECONDS,
+      0,
+      MAX_ERROR_HOLD_SECONDS,
     ),
     shellPath: parseShellPath(input.shellPath),
   };
