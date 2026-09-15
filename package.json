@@ -13,7 +13,8 @@
   "files": [
     "src",
     "host",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
