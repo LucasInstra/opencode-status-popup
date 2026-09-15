@@ -26,7 +26,7 @@ Tray icons for the same states, the letter o building itself pixel by pixel whil
 
 ![tray icons in every state](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.png)
 
-The letter is drawn on a 6x7 pixel grid with the four corners chamfered and a stroke one cell thick, so it reads as an o (taller than wide, like the glyph in the wordmark) instead of a square box. Pixels appear clockwise from the top left, about 2 every 250ms, and a finished letter holds for half a second before it starts over. Regenerate the sheet with `npm run docs:images`.
+The letter is drawn on a 6x7 pixel grid with a stroke one cell thick — a 2px line in a 20px tray slot, and it is taller than wide, like the glyph in the wordmark. Pixels appear clockwise from the top left, about 2 every 250ms, and a finished letter holds for half a second before it starts over. Regenerate the sheet with `npm run docs:images`.
 
 Two renderers, chosen with the `mode` option:
 

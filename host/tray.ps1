@@ -8,18 +8,18 @@
 
 function Get-OpenCodeRingCells {
   # Cells of the ring, clockwise from the top left, so the letter looks like it
-  # is being drawn. Six columns by seven rows (the glyph of the wordmark is
-  # taller than wide) with the four corners chamfered by one cell, which is what
-  # makes it read as a letter o instead of a square box.
+  # is being drawn. Six columns by seven rows, because the glyph of the wordmark
+  # is taller than wide, with a stroke one cell thick and closed corners so the
+  # o still reads as a blocky letter instead of a heavy square.
   param(
     [int]$Columns = 6,
     [int]$Rows = 7
   )
 
   $cells = New-Object System.Collections.Generic.List[object]
-  for ($x = 1; $x -le ($Columns - 2); $x++) { $cells.Add([pscustomobject]@{ X = $x; Y = 0 }) }
-  for ($y = 1; $y -le ($Rows - 2); $y++) { $cells.Add([pscustomobject]@{ X = ($Columns - 1); Y = $y }) }
-  for ($x = ($Columns - 2); $x -ge 1; $x--) { $cells.Add([pscustomobject]@{ X = $x; Y = ($Rows - 1) }) }
+  for ($x = 0; $x -lt $Columns; $x++) { $cells.Add([pscustomobject]@{ X = $x; Y = 0 }) }
+  for ($y = 1; $y -lt $Rows; $y++) { $cells.Add([pscustomobject]@{ X = ($Columns - 1); Y = $y }) }
+  for ($x = ($Columns - 2); $x -ge 0; $x--) { $cells.Add([pscustomobject]@{ X = $x; Y = ($Rows - 1) }) }
   for ($y = ($Rows - 2); $y -ge 1; $y--) { $cells.Add([pscustomobject]@{ X = 0; Y = $y }) }
   return $cells
 }
