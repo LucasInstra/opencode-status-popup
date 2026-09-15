@@ -26,6 +26,8 @@ Tray icons for the same states, the letter o building itself pixel by pixel whil
 
 ![tray icons in every state](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.png)
 
+The letter is drawn on a 6x7 pixel grid with the four corners chamfered and a stroke one cell thick, so it reads as an o (taller than wide, like the glyph in the wordmark) instead of a square box. Pixels appear clockwise from the top left, about 2 every 250ms, and a finished letter holds for half a second before it starts over. Regenerate the sheet with `npm run docs:images`.
+
 Two renderers, chosen with the `mode` option:
 
 | | `window` (default) | `tray` |
@@ -34,7 +36,7 @@ Two renderers, chosen with the `mode` option:
 | Animation | the word types itself out | the o building itself pixel by pixel while it works, blinking while it waits |
 | Cost | ~45–60 MB (PowerShell + WPF) | ~30–40 MB (PowerShell + WinForms) |
 | Intrusiveness | floats above other windows, but no border, no taskbar button, does not steal focus | nothing covers the screen |
-| Legibility of the word | fully readable | not readable at 16 px, hence the mark and the tooltip |
+| Legibility of the word | fully readable | the word does not fit in a 16px slot, hence the letter o |
 
 Both are a single detached PowerShell process that is started on demand, shared by every OpenCode instance, and exits by itself a few seconds after the last instance goes away.
 

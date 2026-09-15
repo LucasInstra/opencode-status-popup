@@ -7,17 +7,19 @@
 # agent works.
 
 function Get-OpenCodeRingCells {
-  # Cells of the ring on a Columns x Rows grid, clockwise from the top left, so
-  # the letter looks like it is being drawn.
+  # Cells of the ring, clockwise from the top left, so the letter looks like it
+  # is being drawn. Six columns by seven rows (the glyph of the wordmark is
+  # taller than wide) with the four corners chamfered by one cell, which is what
+  # makes it read as a letter o instead of a square box.
   param(
     [int]$Columns = 6,
-    [int]$Rows = 6
+    [int]$Rows = 7
   )
 
   $cells = New-Object System.Collections.Generic.List[object]
-  for ($x = 0; $x -lt $Columns; $x++) { $cells.Add([pscustomobject]@{ X = $x; Y = 0 }) }
-  for ($y = 1; $y -lt $Rows; $y++) { $cells.Add([pscustomobject]@{ X = ($Columns - 1); Y = $y }) }
-  for ($x = ($Columns - 2); $x -ge 0; $x--) { $cells.Add([pscustomobject]@{ X = $x; Y = ($Rows - 1) }) }
+  for ($x = 1; $x -le ($Columns - 2); $x++) { $cells.Add([pscustomobject]@{ X = $x; Y = 0 }) }
+  for ($y = 1; $y -le ($Rows - 2); $y++) { $cells.Add([pscustomobject]@{ X = ($Columns - 1); Y = $y }) }
+  for ($x = ($Columns - 2); $x -ge 1; $x--) { $cells.Add([pscustomobject]@{ X = $x; Y = ($Rows - 1) }) }
   for ($y = ($Rows - 2); $y -ge 1; $y--) { $cells.Add([pscustomobject]@{ X = 0; Y = $y }) }
   return $cells
 }
@@ -34,18 +36,16 @@ function New-LetterFrame {
 
   $cells = $script:TrayRingCells
   if (-not $cells) { $cells = Get-OpenCodeRingCells }
-  $columns = 6
-  $rows = 6
+  $columns = $script:TrayRingColumns
+  $rows = $script:TrayRingRows
+  if (-not $columns) { $columns = 6 }
+  if (-not $rows) { $rows = 7 }
 
-  $cell = [Math]::Max(1, [Math]::Floor(($Size - 2) / [Math]::Max($columns, $rows)))
-  $gap = 0
-  if ($cell -ge 3) { $gap = 1 }
-  $gridWidth = ($columns * $cell) + (($columns - 1) * $gap)
-  if ($gridWidth -gt ($Size - 1)) {
-    $gap = 0
-    $gridWidth = $columns * $cell
-  }
-  $gridHeight = ($rows * $cell) + (($rows - 1) * $gap)
+  # One cell of stroke. Keep cells at two pixels or more so the letter stays
+  # readable in a 16px tray slot.
+  $cell = [Math]::Max(2, [Math]::Floor(($Size - 1) / $rows))
+  $gridWidth = $columns * $cell
+  $gridHeight = $rows * $cell
   $originX = [Math]::Floor(($Size - $gridWidth) / 2)
   $originY = [Math]::Floor(($Size - $gridHeight) / 2)
 
@@ -64,8 +64,8 @@ function New-LetterFrame {
       $count = [Math]::Min($VisibleCells, $cells.Count)
       for ($index = 0; $index -lt $count; $index++) {
         $target = $cells[$index]
-        $x = $originX + ($target.X * ($cell + $gap))
-        $y = $originY + ($target.Y * ($cell + $gap))
+        $x = $originX + ($target.X * $cell)
+        $y = $originY + ($target.Y * $cell)
         $graphics.FillRectangle($brush, [int]$x, [int]$y, $cell, $cell)
       }
     } finally { $brush.Dispose() }
@@ -87,13 +87,12 @@ function Update-TrayProgressIcon {
     if ($script:TrayProgress -ge $total) {
       $script:TrayHold++
       if ($script:TrayHold -ge 2) {
-        # Back to two pixels, not zero: an empty icon reads as a glitch.
-        $script:TrayProgress = 2
+        # Back to a couple of pixels, not zero: an empty icon reads as a glitch.
+        $script:TrayProgress = [Math]::Min(2, $total)
         $script:TrayHold = 0
       }
     } else {
-      # Two pixels per tick keeps roughly 125ms per pixel with the 250ms timer.
-      $script:TrayProgress = [Math]::Min($total, $script:TrayProgress + 2)
+      $script:TrayProgress = [Math]::Min($total, $script:TrayProgress + $script:TrayBuildStep)
     }
     $script:TrayTrayIcon.Update($script:TrayBuildFrames[$phase][$script:TrayProgress].Icon)
     return
@@ -223,6 +222,11 @@ function Show-TrayIcon {
   $script:TrayPhase = "idle"
   $script:TrayClosing = $false
   $script:TrayTooltip = "opencode"
+  $script:TrayRingColumns = 6
+  $script:TrayRingRows = 7
+  # Pixels per tick, tuned so a full build takes about the same time whatever
+  # the ring size ends up being.
+  $script:TrayBuildStep = [Math]::Max(2, [int][Math]::Ceiling($script:TrayRingCells.Count / 10))
 
   # One fixed GUID for this plugin: the shell keys the tray settings (including
   # where the user dragged the icon) on it, so they survive restarts.
