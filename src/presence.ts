@@ -26,16 +26,22 @@ export class PresenceWriter {
 
   /** Writes only when the observable state changed. Returns true when it did. */
   sync(snapshot: ActivitySnapshot, now = Date.now()): boolean {
-    const signature = `${snapshot.phase}|${snapshot.busy}|${snapshot.retry}|${snapshot.errors}|${snapshot.permissions}|${snapshot.detail}|${this.meta.mode}`;
+    const signature = this.signatureOf(snapshot);
     if (signature === this.signature) return false;
+    // Remember the state only after it reached the disk: a failed write (the
+    // host may be reading the file) is retried by the next change or heartbeat.
+    if (!this.write(snapshot, now)) return false;
     this.signature = signature;
-    this.write(snapshot, now);
     return true;
   }
 
   /** Keeps the file fresh even while nothing changes. */
   refresh(snapshot: ActivitySnapshot, now = Date.now()): void {
-    this.write(snapshot, now);
+    if (this.write(snapshot, now)) this.signature = this.signatureOf(snapshot);
+  }
+
+  private signatureOf(snapshot: ActivitySnapshot): string {
+    return `${snapshot.phase}|${snapshot.busy}|${snapshot.retry}|${snapshot.errors}|${snapshot.permissions}|${snapshot.detail}|${this.meta.mode}`;
   }
 
   dispose(): void {
@@ -47,7 +53,7 @@ export class PresenceWriter {
     }
   }
 
-  private write(snapshot: ActivitySnapshot, now: number): void {
+  private write(snapshot: ActivitySnapshot, now: number): boolean {
     const payload = {
       version: PRESENCE_VERSION,
       instance: this.meta.instance,
@@ -68,8 +74,11 @@ export class PresenceWriter {
       const temporary = `${this.file}.tmp`;
       writeFileSync(temporary, JSON.stringify(payload));
       renameSync(temporary, this.file);
+      return true;
     } catch {
-      // A failed heartbeat is not worth interrupting the session for.
+      // A failed heartbeat is not worth interrupting the session for; the next
+      // change or heartbeat tries again.
+      return false;
     }
   }
 }

@@ -144,8 +144,12 @@ function writePresence() {
     updated: Date.now(),
   };
   const tmp = `${presenceFile}.tmp`;
-  writeFileSync(tmp, JSON.stringify(payload));
-  renameSync(tmp, presenceFile);
+  try {
+    writeFileSync(tmp, JSON.stringify(payload));
+    renameSync(tmp, presenceFile);
+  } catch {
+    // The host may be reading the file right now; the next heartbeat retries.
+  }
 }
 
 function startHeartbeat() {

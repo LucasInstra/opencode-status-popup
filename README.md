@@ -10,17 +10,17 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 
 | State | Window | Tray | Meaning |
 |---|---|---|---|
-| `idle` | `opencode`, white, slow breathing | full bar, slow blink | nothing is running |
-| `busy` | `opencode` typing itself, blue | blue bar filling up | the agent is working |
-| `retry` | `opencode` typing itself, amber | amber bar filling up | a provider request failed and another attempt is scheduled |
-| `error` | `opencode!`, red, breathing | red icon, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
-| `permission` | `opencode?`, violet, faster breathing | violet icon, fast blink | OpenCode is blocked waiting for a permission decision from you |
+| `idle` | `opencode`, white, slow breathing | mark, slow blink | nothing is running |
+| `busy` | `opencode` typing itself, blue | mark with a bright wedge sweeping around it, blue | the agent is working |
+| `retry` | `opencode` typing itself, amber | same sweep, amber | a provider request failed and another attempt is scheduled |
+| `error` | `opencode!`, red, breathing | mark, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
+| `permission` | `opencode?`, violet, faster breathing | mark, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
 
 Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. The tray tooltip and the tray balloon carry the detail (`needs you: bash git push origin main`, `error: 429 provider.rate-limit`), which is also where several projects are listed.
 
 ![the five states](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/states.png)
 
-Tray icons for the same states, the bar filling up while the agent works and blinking while it waits for you, at 8x and at real size:
+Tray icons for the same states, the bright wedge sweeping around the mark while the agent works and the mark blinking while it waits for you, at 8x and at real size:
 
 ![tray icons in every state](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.png)
 
@@ -28,8 +28,8 @@ Two renderers, chosen with the `mode` option:
 
 | | `window` (default) | `tray` |
 |---|---|---|
-| What you see | frameless translucent pill, top of the z-order | system tray icon |
-| Animation | the word types itself out | rounded bar that fills as the word types + tooltip with the text |
+| What you see | frameless translucent pill, top of the z-order | system tray icon with the OpenCode mark |
+| Animation | the word types itself out | the mark with a bright wedge sweeping around it while it works, blinking while it waits |
 | Cost | ~45–60 MB (PowerShell + WPF) | ~30–40 MB (PowerShell + WinForms) |
 | Intrusiveness | floats above other windows, but no border, no taskbar button, does not steal focus | nothing covers the screen |
 | Legibility of the word | fully readable | not readable at 16 px, hence the bar |

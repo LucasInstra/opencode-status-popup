@@ -28,6 +28,7 @@ Add-Type -AssemblyName System.Windows.Forms
 $script:DocWord = "opencode"
 $script:PopWord = $script:DocWord
 $null = New-PopupWindow
+$script:TrayMarkMask = New-OpenCodeMarkMask -Pixels 256
 
 $script:DocBackdrop = [System.Drawing.Color]::FromArgb(255, 13, 13, 17)
 $script:DocLabel = [System.Drawing.Color]::FromArgb(255, 139, 148, 158)
@@ -190,10 +191,10 @@ $palette = @{
 }
 
 $trayFrames = @()
-for ($i = 1; $i -le 8; $i++) { $trayFrames += (New-TrayFrame -Size $iconSize -Fill ([double]$i / 8) -Alpha 255 -Rgb $palette["busy"]) }
-for ($i = 1; $i -le 8; $i++) { $trayFrames += (New-TrayFrame -Size $iconSize -Fill ([double]$i / 8) -Alpha 255 -Rgb $palette["retry"]) }
+for ($i = 0; $i -lt 12; $i++) { $trayFrames += (New-MarkFrame -Size $iconSize -Angle ((360.0 * $i) / 12) -Rgb $palette["busy"]) }
+for ($i = 0; $i -lt 12; $i++) { $trayFrames += (New-MarkFrame -Size $iconSize -Angle ((360.0 * $i) / 12) -Rgb $palette["retry"]) }
 foreach ($name in @("error", "permission", "idle")) {
-  $trayFrames += (New-TrayFrame -Size $iconSize -Fill 1.0 -Alpha 235 -Rgb $palette[$name])
+  $trayFrames += (New-MarkFrame -Size $iconSize -BrightAlpha 0.95 -Rgb $palette[$name])
 }
 
 $scale = 8

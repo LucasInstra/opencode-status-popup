@@ -121,7 +121,17 @@ function Get-AggregateState {
   foreach ($file in $files) {
     $raw = $null
     try {
-      $raw = [System.IO.File]::ReadAllText($file)
+      # Share delete on purpose: the plugin replaces the file atomically and a
+      # read handle that denied it would make the writer fail with a sharing
+      # violation on Windows.
+      $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+      $stream = [System.IO.File]::Open($file, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+      try {
+        $reader = New-Object System.IO.StreamReader($stream)
+        $raw = $reader.ReadToEnd()
+      } finally {
+        $reader.Dispose()
+      }
     } catch {
       continue
     }

@@ -2,72 +2,137 @@
 #
 # Event handlers only see $script: state and file level functions, see window.ps1.
 
-function New-TrayFrame {
-  param(
-    [int]$Size,
-    [double]$Fill,
-    [int]$Alpha,
-    [int[]]$Rgb
-  )
+# The official OpenCode mark: an outlined square with a block inside, taken from
+# the favicon. Coordinates below are the 512x512 viewBox values.
 
-  if (-not $Rgb -or $Rgb.Count -lt 3) { $Rgb = @(0x7A, 0xC0, 0xFF) }
+function New-OpenCodeMarkMask {
+  # White mark on transparent, rendered once at a higher resolution so the
+  # frames can be tinted and scaled down with antialiasing.
+  param([int]$Pixels)
 
-  $bmp = New-Object System.Drawing.Bitmap($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-  $graphics = [System.Drawing.Graphics]::FromImage($bmp)
+  $bitmap = New-Object System.Drawing.Bitmap($Pixels, $Pixels, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   try {
     $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $graphics.Clear([System.Drawing.Color]::Transparent)
 
-    $pad = [double][Math]::Max(1.0, $Size * 0.09)
-    $side = [double]($Size - (2 * $pad))
-    if ($side -le 2) { $side = $Size - 2; $pad = 1.0 }
+    # Mark bounds: x 128..384, y 96..416 (256x320). Hole: 192..320 x 160..352.
+    $padding = [Math]::Max(1.0, $Pixels * 0.04)
+    $scale = ($Pixels - (2 * $padding)) / 320.0
+    $left = [float](($Pixels - (256 * $scale)) / 2)
+    $top = [float](($Pixels - (320 * $scale)) / 2)
 
-    $rect = New-Object System.Drawing.RectangleF([float]$pad, [float]$pad, [float]$side, [float]$side)
-    $radius = [float]($side * 0.28)
-    $d = $radius * 2
+    $outer = [System.Drawing.RectangleF]::new($left, $top, [float](256 * $scale), [float](320 * $scale))
+    $hole = [System.Drawing.RectangleF]::new(
+      [float]($left + (64 * $scale)),
+      [float]($top + (64 * $scale)),
+      [float](128 * $scale),
+      [float](192 * $scale))
+    $block = [System.Drawing.RectangleF]::new(
+      [float]($left + (64 * $scale)),
+      [float]($top + (128 * $scale)),
+      [float](128 * $scale),
+      [float](128 * $scale))
 
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
     try {
-      $path.AddArc($rect.X, $rect.Y, $d, $d, 180, 90)
-      $path.AddArc(($rect.Right - $d), $rect.Y, $d, $d, 270, 90)
-      $path.AddArc(($rect.Right - $d), ($rect.Bottom - $d), $d, $d, 0, 90)
-      $path.AddArc($rect.X, ($rect.Bottom - $d), $d, $d, 90, 90)
-      $path.CloseFigure()
-
-      $color = [System.Drawing.Color]::FromArgb($Alpha, $Rgb[0], $Rgb[1], $Rgb[2])
-
-      if ($Fill -gt 0) {
-        $state = $graphics.Save()
-        try {
-          $graphics.SetClip($path)
-          $width = [float]($side * [Math]::Min(1.0, [Math]::Max(0.0, $Fill)))
-          $brush = New-Object System.Drawing.SolidBrush($color)
-          try {
-            $graphics.FillRectangle($brush, [float]$rect.X, [float]$rect.Y, $width, [float]$rect.Height)
-          } finally { $brush.Dispose() }
-        } finally { $graphics.Restore($state) }
-      }
-
-      $penWidth = [float][Math]::Max(1.0, $Size * 0.075)
-      $pen = New-Object System.Drawing.Pen($color, $penWidth)
-      try { $graphics.DrawPath($pen, $path) } finally { $pen.Dispose() }
-    } finally { $path.Dispose() }
+      $graphics.FillRectangle($white, $outer)
+      # Punch the hole, then draw the block that sits inside it.
+      $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+      $clear = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::Transparent)
+      try { $graphics.FillRectangle($clear, $hole) } finally { $clear.Dispose() }
+      $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+      $graphics.FillRectangle($white, $block)
+    } finally { $white.Dispose() }
   } finally {
     $graphics.Dispose()
   }
 
-  $handle = $bmp.GetHicon()
+  return $bitmap
+}
+
+function New-TintAttributes {
+  param(
+    [int[]]$Rgb,
+    [double]$Alpha
+  )
+
+  $matrix = New-Object System.Drawing.Imaging.ColorMatrix
+  $matrix.Matrix00 = [float]($Rgb[0] / 255.0)
+  $matrix.Matrix11 = [float]($Rgb[1] / 255.0)
+  $matrix.Matrix22 = [float]($Rgb[2] / 255.0)
+  $matrix.Matrix33 = [float]$Alpha
+  $matrix.Matrix44 = 1.0
+
+  $attributes = New-Object System.Drawing.Imaging.ImageAttributes
+  $attributes.SetColorMatrix($matrix)
+  return $attributes
+}
+
+function New-MarkFrame {
+  # One tray icon: the mark in the given colour. A negative angle draws the
+  # plain mark (brightness only), otherwise a bright wedge sweeps over a dim mark.
+  param(
+    [int]$Size,
+    [double]$Angle = -1,
+    [double]$BrightAlpha = 1.0,
+    [double]$DimAlpha = 0.55,
+    [double]$WedgeDegrees = 110,
+    [int[]]$Rgb
+  )
+
+  $mask = $script:TrayMarkMask
+  $bitmap = New-Object System.Drawing.Bitmap($Size, $Size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  try {
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+
+    $destination = [System.Drawing.Rectangle]::new(0, 0, $Size, $Size)
+    $source = [System.Drawing.Rectangle]::new(0, 0, $mask.Width, $mask.Height)
+    $unit = [System.Drawing.GraphicsUnit]::Pixel
+
+    if ($Angle -ge 0) {
+      $dimAttributes = New-TintAttributes -Rgb $Rgb -Alpha $DimAlpha
+      try { $graphics.DrawImage($mask, $destination, 0, 0, $mask.Width, $mask.Height, $unit, $dimAttributes) } finally { $dimAttributes.Dispose() }
+
+      $wedge = New-Object System.Drawing.Drawing2D.GraphicsPath
+      try {
+        $radius = $Size * 1.5
+        $wedge.AddPie(
+          [float](($Size / 2) - $radius),
+          [float](($Size / 2) - $radius),
+          [float]($radius * 2),
+          [float]($radius * 2),
+          [float]$Angle,
+          [float]$WedgeDegrees)
+        $graphics.SetClip($wedge)
+        $brightAttributes = New-TintAttributes -Rgb $Rgb -Alpha $BrightAlpha
+        try { $graphics.DrawImage($mask, $destination, 0, 0, $mask.Width, $mask.Height, $unit, $brightAttributes) } finally { $brightAttributes.Dispose() }
+        $graphics.ResetClip()
+      } finally { $wedge.Dispose() }
+    } else {
+      $attributes = New-TintAttributes -Rgb $Rgb -Alpha $BrightAlpha
+      try { $graphics.DrawImage($mask, $destination, 0, 0, $mask.Width, $mask.Height, $unit, $attributes) } finally { $attributes.Dispose() }
+    }
+  } finally {
+    $graphics.Dispose()
+  }
+
+  $handle = $bitmap.GetHicon()
   $icon = [System.Drawing.Icon]::FromHandle($handle)
-  return [pscustomobject]@{ Icon = $icon; Bitmap = $bmp; Handle = $handle }
+  return [pscustomobject]@{ Icon = $icon; Bitmap = $bitmap; Handle = $handle }
 }
 
 function Update-TrayProgressIcon {
   $phase = $script:TrayPhase
 
-  # Working phases animate the bar filling up as the word types itself out.
+  # Working phases sweep a bright wedge around the mark.
   if ($phase -eq "busy" -or $phase -eq "retry") {
-    $script:TrayProgress = ($script:TrayProgress % $script:TraySteps) + 1
-    $script:TrayNotifyIcon.Icon = $script:TrayFillFrames[$phase][$script:TrayProgress - 1].Icon
+    $script:TrayProgress = ($script:TrayProgress % $script:TraySweepSteps) + 1
+    $script:TrayNotifyIcon.Icon = $script:TraySweepFrames[$phase][$script:TrayProgress - 1].Icon
     return
   }
 
@@ -117,8 +182,13 @@ function Update-TrayTick {
 
   $visible = $script:TrayWord
   $working = $script:TrayPhase -eq "busy" -or $script:TrayPhase -eq "retry"
-  if ($working -and $script:TrayProgress -lt $script:TrayWord.Length) {
-    $visible = $script:TrayWord.Substring(0, $script:TrayProgress)
+  if ($working) {
+    # The tooltip tracks the sweep so the word still grows while it works.
+    $ratio = $script:TrayProgress / $script:TraySweepSteps
+    $chars = [Math]::Max(1, [int][Math]::Round($ratio * $script:TrayWord.Length))
+    if ($chars -lt $script:TrayWord.Length) {
+      $visible = $script:TrayWord.Substring(0, $chars)
+    }
   }
 
   $tooltip = Format-AggregateTooltip -Aggregate $agg -Word $script:TrayWord -ProgressWord $visible
@@ -162,28 +232,28 @@ function Show-TrayIcon {
     idle       = @(0x7A, 0xC0, 0xFF)
   }
 
-  $script:TraySteps = 8
-  $script:TrayFillFrames = @{}
+  $script:TrayMarkMask = New-OpenCodeMarkMask -Pixels ([Math]::Min(256, $size * 8))
+
+  $script:TraySweepSteps = 12
+  $script:TraySweepFrames = @{}
   foreach ($name in @("busy", "retry")) {
     $frames = @()
-    for ($i = 1; $i -le $script:TraySteps; $i++) {
-      $frames += (New-TrayFrame -Size $size -Fill ([double]$i / $script:TraySteps) -Alpha 255 -Rgb $palette[$name])
+    for ($i = 0; $i -lt $script:TraySweepSteps; $i++) {
+      $angle = (360.0 * $i) / $script:TraySweepSteps
+      $frames += (New-MarkFrame -Size $size -Angle $angle -Rgb $palette[$name])
     }
-    $script:TrayFillFrames[$name] = $frames
+    $script:TraySweepFrames[$name] = $frames
   }
 
   $script:TrayBlinkFrames = @{}
   foreach ($name in @("idle", "error", "permission")) {
-    # Waiting states keep more brightness while blinking so the colour stays readable.
-    $dimAlpha = 85
-    if ($name -ne "idle") { $dimAlpha = 130 }
-    $bright = New-TrayFrame -Size $size -Fill 1.0 -Alpha 235 -Rgb $palette[$name]
-    $dim = New-TrayFrame -Size $size -Fill 1.0 -Alpha $dimAlpha -Rgb $palette[$name]
+    $bright = New-MarkFrame -Size $size -BrightAlpha 0.95 -Rgb $palette[$name]
+    $dim = New-MarkFrame -Size $size -BrightAlpha 0.35 -Rgb $palette[$name]
     $script:TrayBlinkFrames[$name] = @($bright, $dim)
   }
 
   $allFrames = @()
-  foreach ($group in $script:TrayFillFrames.Values) { $allFrames += $group }
+  foreach ($group in $script:TraySweepFrames.Values) { $allFrames += $group }
   foreach ($group in $script:TrayBlinkFrames.Values) { $allFrames += $group }
 
   $script:TrayProgress = 0
