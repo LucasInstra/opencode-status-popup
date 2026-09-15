@@ -1,12 +1,33 @@
+<div align="center">
+
 # opencode status popup
 
-![npm](https://img.shields.io/npm/v/opencode-status-popup) ![license](https://img.shields.io/npm/l/opencode-status-popup)
+**A second screen for your agent: a floating pill and a tray icon that show what OpenCode is doing right now.**
+
+[![npm](https://img.shields.io/npm/v/opencode-status-popup?color=7ac0ff)](https://www.npmjs.com/package/opencode-status-popup)
+[![license](https://img.shields.io/npm/l/opencode-status-popup?color=7ac0ff)](LICENSE)
+[![platform](https://img.shields.io/badge/platform-windows-7ac0ff)](#install)
+[![opencode](https://img.shields.io/badge/opencode-v2-7ac0ff)](https://opencode.ai/v2/docs/)
+
+<img src="https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/typing.gif" width="380" alt="the pill typing opencode">
+&nbsp;&nbsp;
+<img src="https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.gif" width="150" alt="the tray letter building itself pixel by pixel">
+
+*the pill typing itself out while the agent works · the tray icon, the letter o building pixel by pixel*
+
+</div>
+
+---
 
 An OpenCode V2 plugin that shows what the agent is doing on a second surface, outside the terminal.
 
 While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. The same surface doubles as an attention light: it turns **amber** while a provider request is being retried, **red** when an execution failed, and **violet with a `?`** when OpenCode is waiting for you to allow something.
 
-![the pill typing opencode](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/typing.gif)
+- **You are never left guessing** — is it working, retrying, stuck, or waiting for you?
+- **The permission state comes first**: a session blocked on a permission decision outranks everything else, so you can be in another window and still notice.
+- **Out of the way**: the pill has no border, no taskbar button, it never steals focus and you can drag it anywhere. Prefer nothing on screen? Use the tray icon.
+- **Several projects, one indicator**: every OpenCode instance reports in and the popup shows the union.
+- **Nothing to install twice**: the UI is a small PowerShell process that starts on demand and exits by itself; the plugin itself is plain TypeScript.
 
 ## States
 
@@ -18,7 +39,7 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 | `error` | `opencode!`, red, breathing | the o, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
 | `permission` | `opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
 
-Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. The tray tooltip and the tray balloon carry the detail (`needs you: bash git push origin main`, `error: 429 provider.rate-limit`), which is also where several projects are listed.
+Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. In tray mode, a left click shows a balloon with the detail — `needs you: bash git push origin main`, `error: 429 provider.rate-limit` — and lists every project involved.
 
 ![the five states](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/states.png)
 
@@ -26,7 +47,7 @@ Tray icons for the same states, the letter o building itself pixel by pixel whil
 
 ![tray icons in every state](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/tray.png)
 
-The letter is drawn on a 6x7 pixel grid with a stroke one cell thick — a 2px line in a 20px tray slot, and it is taller than wide, like the glyph in the wordmark. Pixels appear clockwise from the top left, about 2 every 250ms, and a finished letter holds for half a second before it starts over. Regenerate the sheet with `npm run docs:images`.
+The letter is drawn on a 6x7 pixel grid with a stroke one cell thick — a 2px line in a 20px tray slot, and it is taller than wide, like the glyph in the wordmark. Pixels appear clockwise from the top left, about 2 every 250ms, and a finished letter holds for half a second before it starts over. Every image in this README is rendered from the real popup, off screen: `npm run docs:images` for the stills and `npm run docs:gif` for the animations.
 
 Two renderers, chosen with the `mode` option:
 

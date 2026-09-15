@@ -251,4 +251,36 @@ foreach ($frame in $typingFrames) {
 Write-Frames -Frames $padded -Name "typing" -DelayMs 130
 foreach ($frame in $padded) { $frame.Dispose() }
 
+# ---------------------------------------------------------------------------
+# 5. raw frames for the tray gif: the letter building, then the state colours
+# ---------------------------------------------------------------------------
+$zoom = 4
+$big = $iconSize * $zoom
+$plateSize = $big + 16
+$traySequence = @()
+
+for ($visible = 0; $visible -le $totalCells; $visible += 2) {
+  $traySequence += (New-LetterFrame -Size $iconSize -VisibleCells $visible -Rgb $palette["busy"])
+}
+foreach ($i in 1..2) {
+  $traySequence += (New-LetterFrame -Size $iconSize -VisibleCells $totalCells -Rgb $palette["busy"])
+}
+foreach ($name in @("retry", "error", "permission", "idle")) {
+  $traySequence += (New-LetterFrame -Size $iconSize -VisibleCells $totalCells -Rgb $palette[$name] -Alpha 0.95)
+}
+
+$trayPlates = @()
+$offset = [int][Math]::Floor(($plateSize - $big) / 2)
+foreach ($frame in $traySequence) {
+  $plate = New-Canvas -Width $plateSize -Height $plateSize
+  $plate.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+  $plate.Graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+  $plate.Graphics.DrawImage($frame.Bitmap, [System.Drawing.Rectangle]::new($offset, $offset, $big, $big))
+  $plate.Graphics.Dispose()
+  $trayPlates += $plate.Bitmap
+  $frame.Bitmap.Dispose()
+}
+Write-Frames -Frames $trayPlates -Name "tray" -DelayMs 250
+foreach ($frame in $trayPlates) { $frame.Dispose() }
+
 "done -> $OutDir"
