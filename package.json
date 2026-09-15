@@ -43,7 +43,9 @@
     "docs:images": "pwsh -NoProfile -ExecutionPolicy Bypass -Sta -File scripts/render-docs.ps1",
     "docs:gif": "node scripts/build-gif.mjs",
     "preview": "node scripts/preview.mjs",
+    "preview:cycle": "node scripts/preview.mjs --watch",
     "preview:tray": "node scripts/preview.mjs --mode tray",
+    "preview:tray:cycle": "node scripts/preview.mjs --mode tray --watch",
     "preview:stop": "node scripts/preview.mjs --stop"
   },
   "dependencies": {

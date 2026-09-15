@@ -168,19 +168,44 @@ OpenCode server
 
 ```sh
 npm install
-npm run typecheck
-npm test                        # unit tests for config and event tracking
+npm run typecheck               # TypeScript
+npm test                        # unit tests: config parsing and event tracking
 $env:SMOKE=1; npm run smoke     # loads the plugin, drives it with events, spawns a real host
-npm run preview                 # spawns the window host with a fake presence file
-npm run preview:tray
-npm run preview:stop
 ```
 
-`npm run preview` is the fastest way to iterate on the visuals: it writes the same presence files the plugin writes, so the host cannot tell the difference. Useful flags: `--mode window|tray`, `--state busy|idle|retry|error|permission`, `--detail '<text>'`, `--watch` (cycles the states), `--word`, `--type`, `--seconds`.
+### See it without OpenCode
+
+The preview writes the same presence files the plugin writes, so the host cannot tell the difference. This is the fastest way to iterate on the visuals:
+
+| Command | What it does |
+|---|---|
+| `npm run preview:cycle` | the pill, cycling through every state: `busy` → `retry` → `error` → `permission` → `idle`, 6s each |
+| `npm run preview:tray:cycle` | the tray icon, same cycle |
+| `npm run preview` | the pill, staying in one state (`busy` by default) |
+| `npm run preview:tray` | the tray icon, staying in one state |
+| `npm run preview:stop` | stop the host and remove the fake presence file |
+
+Ctrl+C also cleans up, and the tray icon may start inside the hidden icons area (`^`) the first time — drag it onto the taskbar once and it stays there.
+
+Flags go after `--`:
+
+```sh
+npm run preview -- --state permission --detail "bash npm publish"
+npm run preview -- --word oi --type 200
+npm run preview:tray -- --keep
+```
+
+- `--mode window|tray` — which renderer.
+- `--state busy|idle|retry|error|permission` — where the cycle starts, or the only state without `--watch`.
+- `--watch` — cycle every 6 seconds.
+- `--detail '<text>'` — what the balloon reports.
+- `--word <text>` / `--type <ms>` — the word and the typing speed.
+- `--seconds N` — stop by itself after N seconds.
+- `--keep` — leave the host running when the preview exits.
 
 `pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-window.out`, which is the quickest way to read a script error.
 
-`npm run docs:images` re-renders `docs/*.png` from the real XAML (off screen, so no screen capture and no desktop in the images) and dumps the raw frames; `npm run docs:gif` turns those frames into `docs/typing.gif`.
+`npm run docs:images` re-renders `docs/*.png` from the real XAML (off screen, so no screen capture and no desktop in the images) and dumps the raw frames; `npm run docs:gif` turns those frames into `docs/typing.gif` and `docs/tray.gif`.
 
 The host logs to `%TEMP%\opencode-status-popup\host.log`, which is the first place to look when the popup does not show up:
 
