@@ -25,7 +25,7 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 
 - **You are never left guessing** — is it working, retrying, stuck, or waiting for you?
 - **The permission state comes first**: a session blocked on a permission decision outranks everything else, so you can be in another window and still notice.
-- **Out of the way**: the pill has no border, no taskbar button, it never steals focus and you can drag it anywhere. Prefer nothing on screen? Use the tray icon.
+- **Out of the way**: the pill has no border, no taskbar button, it never steals focus, it reopens where you left it and you can drag it anywhere. Prefer nothing on screen? Switch to the tray icon with `/popup-tray`.
 - **Several projects, one indicator**: every OpenCode instance reports in and the popup shows the union.
 - **Nothing to install twice**: the UI is a small PowerShell process that starts on demand and exits by itself; the plugin itself is plain TypeScript.
 
@@ -115,7 +115,7 @@ All options are optional. Defaults shown.
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | Turn the plugin off without uninstalling it. |
-| `mode` | `"window" \| "tray"` | `"window"` | Which renderer to use. |
+| `mode` | `"window" \| "tray"` | `"window"` | Which renderer to use. The `/popup-*` commands override it until `/popup-reset`. |
 | `word` | `string` | `"opencode"` | Word that types itself out. Max 24 characters. |
 | `typeMs` | `number` | `140` | Milliseconds per typed character (40–2000). |
 | `position` | `"bottom-right" \| "bottom-left" \| "top-right" \| "top-left"` | `"bottom-right"` | Where the pill appears the first time. After you drag it, the position is remembered. |
@@ -143,11 +143,26 @@ All options are optional. Defaults shown.
 
 ## Interaction
 
-- **Drag** the pill with the left mouse button. The position is stored in `%TEMP%\opencode-status-popup\window.json`.
+- **Drag** the pill with the left mouse button. The position is remembered in `%TEMP%\opencode-status-popup\window.json` and checked every couple of seconds, so the pill reopens where you left it even if the host was killed, the mode was switched, or OpenCode restarted.
 - **Right click** for `Reset position` and `Close`.
 - In `tray` mode, **left click** shows a balloon with the current state and **right click** opens `Close`.
 - The window never appears in the taskbar or the Alt+Tab list, and it does not activate itself when it appears.
 - The tray icon keeps a **constant tooltip** (`opencode-status-popup`) on purpose: Windows uses the tooltip as part of the icon identity and hides an icon whose tooltip changes. The live state is in the balloon you get on left click.
+
+## Commands
+
+Four commands switch the renderer at runtime — no config edit, no restart:
+
+| Command | What it does |
+|---|---|
+| `/popup-window` | show the floating pill |
+| `/popup-tray` | show the tray icon |
+| `/popup-toggle` | switch between the two |
+| `/popup-reset` | forget the choice and go back to the `mode` of the config |
+
+The switch is immediate: the running host is replaced by one in the new mode, and the pill comes back where it was. The choice is kept in the plugin storage, so it survives restarts of OpenCode until you run `/popup-reset`.
+
+In tray mode the icon may start inside the hidden icons area (`^`) the first time — drag it onto the taskbar once and it stays there.
 
 ## How it works
 
@@ -165,7 +180,7 @@ OpenCode server
 - **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Permission prompts come from `permission.asked` / `permission.replied`. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
 - **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed.
-- **Tray overflow**: Windows puts a new tray icon in the hidden icons area. Drag it onto the taskbar once and it stays there: the plugin registers the icon with a fixed GUID identity (see `host/TrayIcon.cs`), so the shell remembers your choice across restarts.
+- **Tray identity**: the icon is registered through `Shell_NotifyIcon` with a fixed GUID (see `host/TrayIcon.cs`), so the shell remembers the place you dragged it to across restarts, unlike the executable-plus-uid slot that every PowerShell tray icon shares.
 
 ## Development
 

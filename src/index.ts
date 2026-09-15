@@ -1,8 +1,9 @@
 import { Plugin } from "@opencode/plugin";
-import { parseConfig } from "./config";
+import { parseConfig, type PopupMode } from "./config";
 import { createDebugLog } from "./debug";
-import { HostSupervisor } from "./host";
+import { HostSupervisor, type HostSettings } from "./host";
 import { hostScriptPath, instanceSlug, presenceFileOf, projectNameOf, statusStateDir } from "./paths";
+import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
 import { PresenceWriter } from "./presence";
 import { SessionActivity, type RawEvent } from "./status";
 
@@ -23,26 +24,29 @@ export default Plugin.define({
     const stateDir = statusStateDir(process.env.OPENCODE_STATUS_POPUP_DIR);
     const project = projectNameOf(directory);
     const trace = createDebugLog(stateDir);
-    trace(`setup directory=${directory} project=${project} mode=${config.mode} pid=${process.pid}`);
+
+    const stored = await ctx.storage.get(MODE_PREFERENCE_KEY).catch(() => undefined);
+    const settings: HostSettings = {
+      mode: resolveMode(stored, config.mode),
+      word: config.word,
+      typeMs: config.typeMs,
+      fresh: config.freshSeconds,
+      idle: config.idleSeconds,
+      mark: config.mark,
+    };
+    trace(`setup directory=${directory} project=${project} mode=${settings.mode} pid=${process.pid}`);
 
     const activity = new SessionActivity({ errorHoldMs: config.errorHoldSeconds * 1000 });
     const presence = new PresenceWriter(presenceFileOf(stateDir, directory), {
       instance: instanceSlug(directory),
       project,
       directory,
-      mode: config.mode,
+      mode: settings.mode,
     });
     const host = new HostSupervisor({
       scriptPath: hostScriptPath(),
       stateDir,
-      settings: {
-        mode: config.mode,
-        word: config.word,
-        typeMs: config.typeMs,
-        fresh: config.freshSeconds,
-        idle: config.idleSeconds,
-        mark: config.mark,
-      },
+      settings,
       shellPath: config.shellPath,
       log: (message) => console.error(`[${PLUGIN_ID}] ${message}`),
     });
@@ -63,6 +67,57 @@ export default Plugin.define({
     }, SUPERVISE_MS);
     heartbeat.unref?.();
     supervise.unref?.();
+
+    // /popup-* commands: the renderer is switchable at runtime, the choice is
+    // remembered, and the host restarts because its settings no longer match.
+    const switchMode = async (mode: PopupMode, persist: boolean): Promise<void> => {
+      if (settings.mode !== mode) {
+        settings.mode = mode;
+        presence.setMode(mode);
+        presence.sync(snapshot);
+      }
+      await (persist
+        ? ctx.storage.set(MODE_PREFERENCE_KEY, mode)
+        : ctx.storage.remove(MODE_PREFERENCE_KEY)
+      ).catch(() => undefined);
+      trace(`switch mode=${mode} persist=${persist}`);
+    };
+
+    await ctx.command.transform((editor) => {
+      editor.add({
+        name: "popup-window",
+        description: "Status popup: show the floating pill instead of the tray icon",
+        execute: async () => {
+          await switchMode("window", true);
+          void host.ensure();
+        },
+      });
+      editor.add({
+        name: "popup-tray",
+        description: "Status popup: show a tray icon instead of the floating pill",
+        execute: async () => {
+          await switchMode("tray", true);
+          void host.ensure();
+        },
+      });
+      editor.add({
+        name: "popup-toggle",
+        description: "Status popup: switch between the floating pill and the tray icon",
+        execute: async () => {
+          const next = toggleMode(settings.mode === "tray" ? "tray" : "window");
+          await switchMode(next, true);
+          void host.ensure();
+        },
+      });
+      editor.add({
+        name: "popup-reset",
+        description: "Status popup: forget the chosen mode and use the one from the config",
+        execute: async () => {
+          await switchMode(config.mode, false);
+          void host.ensure();
+        },
+      });
+    });
 
     void (async () => {
       try {

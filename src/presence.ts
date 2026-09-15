@@ -18,11 +18,21 @@ export interface PresenceMeta {
  */
 export class PresenceWriter {
   private signature = "";
+  private meta: PresenceMeta;
 
   constructor(
     private readonly file: string,
-    private readonly meta: PresenceMeta,
-  ) {}
+    meta: PresenceMeta,
+  ) {
+    this.meta = meta;
+  }
+
+  /** The renderer is switchable at runtime, and the mode is part of the file. */
+  setMode(mode: string): void {
+    if (this.meta.mode === mode) return;
+    this.meta = { ...this.meta, mode };
+    this.signature = "";
+  }
 
   /** Writes only when the observable state changed. Returns true when it did. */
   sync(snapshot: ActivitySnapshot, now = Date.now()): boolean {

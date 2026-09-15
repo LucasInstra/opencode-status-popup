@@ -117,6 +117,19 @@ function Set-PopupPosition {
   }
 }
 
+function Save-PopupPosition {
+  # Remembers where the pill is, so it reopens there. The periodic timer and the
+  # close both call this, which covers a host that is killed without closing.
+  try {
+    $left = $script:PopWindow.Left
+    $top = $script:PopWindow.Top
+    if ($left -eq $script:PopSavedLeft -and $top -eq $script:PopSavedTop) { return }
+    $script:PopSavedLeft = $left
+    $script:PopSavedTop = $top
+    Save-WindowState -Left $left -Top $top
+  } catch { }
+}
+
 function Update-PopupAnimation {
   if (-not $script:PopVisible -or $script:PopClosing) { return }
 
@@ -268,6 +281,8 @@ function Show-PopupWindow {
   $script:PopHeartbeatTicks = 0
   $script:PopVisible = $false
   $script:PopClosing = $false
+  $script:PopSavedLeft = [double]::NaN
+  $script:PopSavedTop = [double]::NaN
 
   $menu = New-Object System.Windows.Controls.ContextMenu
 
@@ -296,7 +311,7 @@ function Show-PopupWindow {
   $script:PopWindow.Add_MouseLeftButtonDown({
     try {
       $script:PopWindow.DragMove()
-      Save-WindowState -Left $script:PopWindow.Left -Top $script:PopWindow.Top
+      Save-PopupPosition
     } catch { }
   })
 
@@ -324,12 +339,18 @@ function Show-PopupWindow {
   })
 
   $script:PopWindow.Add_Closed({
-    try { Save-WindowState -Left $script:PopWindow.Left -Top $script:PopWindow.Top } catch { }
+    try {
+      Save-PopupPosition
+    } catch { }
   })
 
   $anim = New-Object System.Windows.Threading.DispatcherTimer
   $anim.Interval = [TimeSpan]::FromMilliseconds($script:PopTypeMs)
   $anim.Add_Tick({ try { Update-PopupAnimation } catch { } })
+
+  $script:PopSaveTimer = New-Object System.Windows.Threading.DispatcherTimer
+  $script:PopSaveTimer.Interval = [TimeSpan]::FromMilliseconds(2000)
+  $script:PopSaveTimer.Add_Tick({ try { Save-PopupPosition } catch { } })
 
   $stateTimer = New-Object System.Windows.Threading.DispatcherTimer
   $stateTimer.Interval = [TimeSpan]::FromMilliseconds(250)
@@ -338,6 +359,7 @@ function Show-PopupWindow {
   Write-HostHeartbeat -Fields $script:PopHostFields
   $stateTimer.Start()
   $anim.Start()
+  $script:PopSaveTimer.Start()
 
   try {
     [void]$script:PopWindow.ShowDialog()

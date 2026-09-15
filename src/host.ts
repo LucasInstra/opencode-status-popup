@@ -4,12 +4,12 @@ import { hostInfoPathOf, hostMutexName } from "./paths";
 import { listPresenceFiles } from "./presence";
 
 export interface HostSettings {
-  readonly mode: string;
-  readonly word: string;
-  readonly typeMs: number;
-  readonly fresh: number;
-  readonly idle: number;
-  readonly mark: boolean;
+  mode: string;
+  word: string;
+  typeMs: number;
+  fresh: number;
+  idle: number;
+  mark: boolean;
 }
 
 export const HOST_FRESH_MS = 8000;

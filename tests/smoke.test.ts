@@ -46,10 +46,23 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   const directory = process.cwd();
   const presence = presenceFileOf(stateDir, directory);
   const queue = new EventQueue();
+  const store = new Map<string, unknown>();
+  const commands: string[] = [];
   const context = {
     options: { mode, idleSeconds: 30 },
     location: { directory },
     event: { subscribe: (options?: { signal?: AbortSignal }) => queue.stream(options?.signal) },
+    storage: {
+      get: async (key: string) => store.get(key),
+      set: async (key: string, value: unknown) => void store.set(key, value),
+      remove: async (key: string) => void store.delete(key),
+    },
+    command: {
+      transform: async (callback: (editor: { add: (definition: { name: string }) => void }) => void) => {
+        callback({ add: (definition) => void commands.push(definition.name) });
+        return { dispose: async () => {} };
+      },
+    },
   };
 
   let cleanup: Awaited<ReturnType<typeof plugin.setup>> = undefined;
@@ -59,6 +72,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
 
     expect(existsSync(presence)).toBe(true);
     expect(readJson(presence)?.phase).toBe("idle");
+    expect(commands).toContain("popup-tray");
 
     queue.push({ type: "session.status", data: { sessionID: "ses_smoke", status: { type: "busy" } } });
     const busy = await waitFor(() => {
