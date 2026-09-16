@@ -160,13 +160,16 @@ Three ways, none of them needs a config edit or a restart. The choice is kept in
 popup_mode({ mode: "window" | "tray" | "toggle" | "reset" })
 ```
 
-**Commands.** `/popup-window`, `/popup-tray`, `/popup-toggle` and `/popup-reset` are registered on the server and work when a client dispatches them, for example:
+**Commands.** `/popup-window`, `/popup-tray`, `/popup-toggle` and `/popup-reset` are registered twice, for the TUI and for the server:
+
+- `tui.ts` puts them in the `/` autocomplete and the command palette, so typing `/popup` is enough.
+- the server keeps the same commands, which is what makes them work through the API and from other clients:
 
 ```sh
 opencode api post /api/session/<sessionID>/command --data '{"command":"popup-toggle","text":""}'
 ```
 
-> Note: the command palette of the TUI lists the commands the *client* knows about. Commands contributed by a server plugin are reported by `GET /api/command` but are not part of that list yet, so they may not appear in the `/` autocomplete — the tool above is the path that works from a normal prompt today.
+> A command from the prompt travels through the client and leaves a request file next to the presence data; every server instance watches it and applies the change, the same path the popup menu uses. The server commands stay for the API — the palette never listed them, which is why the TUI entrypoint exists.
 
 `reset` (or `/popup-reset`) forgets the choice and goes back to the `mode` of the config.
 

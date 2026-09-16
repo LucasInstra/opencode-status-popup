@@ -4,6 +4,18 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- TUI entrypoint (`tui.ts`): `/popup-window`, `/popup-tray`, `/popup-toggle` and
+  `/popup-reset` now show up in the `/` autocomplete and the command palette.
+  The command leaves a request file next to the presence data, so the switch
+  takes the same path the popup menu uses and every server instance applies it.
+- `exports["./tui"]` so an npm install exposes the same entrypoint, plus a root
+  `tui.ts` that re-exports it for plugin directories, where a loader resolves a
+  `tui` file next to `index.ts` instead of the package exports.
+
 ## 0.2.0 — 2026-09-16
 
 ### Added

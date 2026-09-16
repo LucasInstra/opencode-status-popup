@@ -28,10 +28,12 @@
     "access": "public"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.ts"
   },
   "files": [
     "index.ts",
+    "tui.ts",
     "src",
     "host",
     "README.md",
