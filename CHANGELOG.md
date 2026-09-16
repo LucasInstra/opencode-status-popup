@@ -4,6 +4,36 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- `position` now reaches the host: it was parsed and documented but never passed
+  on the command line, so a fresh profile always opened bottom-right and
+  `Reset position` ignored the configured corner. A pill you already placed
+  keeps its remembered position, and changing the corner does not restart the
+  running host.
+- TUI: the entrypoint hands its slot claim back. `ui.slot` returns the disposer
+  and the keymap layer is owned by the slot, so a reload or a disable no longer
+  leaves the four palette commands behind and stacks a second copy.
+- Server: the command and the tool registration are disposed on shutdown, for
+  the same reason — a reload no longer stacks a second copy of `/popup-*` and
+  `popup_mode`.
+- The `mode.request` handoff is written atomically on the client side and parsed
+  before the file is removed, so a switch cannot be lost to a half written file.
+- `npm run docs:gif` rebuilds `docs/typing.gif` and `docs/tray.gif`, which is
+  what the README always promised.
+
+### Changed
+
+- `@opencode/plugin` bumped from `^2.0.4` to `^2.0.5`.
+- Dev: `host/popup.ps1` defaults `-Mark` to off, so `npm run preview*` and the
+  foreground dev host match the documented default (the plugin always passed the
+  option explicitly).
+- Docs: the state directory files are named in the README (`host.json`,
+  `mode.json`, `mode.request`), the option ranges are documented, and the stale
+  "500 ms" comment and the prompt command path were corrected.
+
 ## 0.2.2 — 2026-09-16
 
 ### Fixed

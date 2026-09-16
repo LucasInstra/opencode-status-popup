@@ -43,6 +43,17 @@ describe("parseConfig", () => {
     expect(parseConfig({ typeMs: 99_999 }).typeMs).toBe(2000);
     expect(parseConfig({ typeMs: "fast" }).typeMs).toBe(DEFAULT_TYPE_MS);
     expect(parseConfig({ idleSeconds: 1 }).idleSeconds).toBe(5);
+    expect(parseConfig({ idleSeconds: 99_999 }).idleSeconds).toBe(3600);
+    expect(parseConfig({ freshSeconds: 1 }).freshSeconds).toBe(5);
+    expect(parseConfig({ freshSeconds: 99_999 }).freshSeconds).toBe(600);
+    expect(parseConfig({ freshSeconds: "20" }).freshSeconds).toBe(20);
+  });
+
+  it("keeps the requested corner and falls back to bottom-right", () => {
+    expect(parseConfig({ position: "top-left" }).position).toBe("top-left");
+    expect(parseConfig({ position: "top-right" }).position).toBe("top-right");
+    expect(parseConfig({ position: "bottom-left" }).position).toBe("bottom-left");
+    expect(parseConfig({ position: "middle" }).position).toBe("bottom-right");
   });
 
   it("trims the word and falls back when it is empty", () => {

@@ -1,4 +1,3 @@
-import { readFileSync, rmSync } from "node:fs";
 import { Plugin } from "@opencode/plugin";
 import { parseConfig, type PopupMode } from "./config";
 import { createDebugLog } from "./debug";
@@ -14,7 +13,7 @@ import {
 } from "./paths";
 import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
 import { PresenceWriter } from "./presence";
-import { readSharedMode, writeSharedMode } from "./sharedMode";
+import { readSharedMode, consumeModeRequest, writeSharedMode } from "./sharedMode";
 import { SessionActivity, type RawEvent } from "./status";
 
 const PLUGIN_ID = "opencode.status-popup";
@@ -47,6 +46,7 @@ export default Plugin.define({
       fresh: config.freshSeconds,
       idle: config.idleSeconds,
       mark: config.mark,
+      position: config.position,
     };
     trace(`setup directory=${directory} project=${project} mode=${settings.mode} pid=${process.pid}`);
 
@@ -126,7 +126,7 @@ export default Plugin.define({
       }
     };
 
-    await ctx.command.transform((editor) => {
+    const commands = await ctx.command.transform((editor) => {
       editor.add({
         name: "popup-window",
         description: "Status popup: show the floating pill instead of the tray icon",
@@ -151,7 +151,7 @@ export default Plugin.define({
 
     // The same switch as a tool, so it can be asked for in a prompt ("put the
     // popup in the tray"): the palette only lists client side commands.
-    await ctx.tool.transform((editor) => {
+    const tools = await ctx.tool.transform((editor) => {
       editor.namespace({
         name: "popup",
         description: "opencode status popup: show it as a floating pill or as a tray icon",
@@ -187,16 +187,10 @@ export default Plugin.define({
     // applied on the next 100 ms tick and the host is replaced.
     const requestFile = modeRequestPathOf(stateDir);
     const watchRequest = setInterval(() => {
-      let requested: unknown;
-      try {
-        const raw = readFileSync(requestFile, "utf8");
-        rmSync(requestFile, { force: true });
-        requested = (JSON.parse(raw) as { mode?: unknown })?.mode;
-      } catch {
-        return; // nothing waiting
-      }
-      void applyRequest(requested).then((applied) => {
-        trace(`mode request ${String(requested)} applied=${String(applied)}`);
+      const consumed = consumeModeRequest(requestFile);
+      if (!consumed) return; // nothing waiting
+      void applyRequest(consumed.mode).then((applied) => {
+        trace(`mode request ${String(consumed.mode)} applied=${String(applied)}`);
       });
     }, 100);
     watchRequest.unref?.();
@@ -218,11 +212,21 @@ export default Plugin.define({
       }
     })();
 
-    return () => {
+    return async () => {
       controller.abort();
       clearInterval(heartbeat);
       clearInterval(supervise);
       clearInterval(watchRequest);
+      // Both registrations are disposable; a reload that skipped this would
+      // stack a second copy of the commands and of the tool. A synchronous
+      // throw must not skip the rest of the cleanup either.
+      for (const registration of [commands, tools]) {
+        try {
+          await registration.dispose();
+        } catch {
+          // keep cleaning up
+        }
+      }
       presence.dispose();
       host.shutdown();
     };

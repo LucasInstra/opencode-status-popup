@@ -59,7 +59,7 @@ Two renderers, chosen with the `mode` option:
 | Intrusiveness | floats above other windows, but no border, no taskbar button, does not steal focus | nothing covers the screen |
 | Legibility of the word | fully readable | the word does not fit in a 16px slot, hence the letter o |
 
-Both are a single detached PowerShell process that is started on demand, shared by every OpenCode instance, and exits by itself a few seconds after the last instance goes away.
+Both are a single PowerShell process that is started on demand, shared by every OpenCode instance, and exits by itself `idleSeconds` after the last instance goes away (25 seconds by default).
 
 ## Install
 
@@ -119,9 +119,9 @@ All options are optional. Defaults shown.
 | `word` | `string` | `"opencode"` | Word that types itself out. Max 24 characters. |
 | `typeMs` | `number` | `140` | Milliseconds per typed character (40–2000). |
 | `position` | `"bottom-right" \| "bottom-left" \| "top-right" \| "top-left"` | `"bottom-right"` | Where the pill appears the first time. After you drag it, the position is remembered. |
-| `freshSeconds` | `number` | `20` | How long presence data counts as fresh. |
-| `idleSeconds` | `number` | `25` | How long the host waits without any live instance before exiting. |
-| `errorHoldSeconds` | `number` | `90` | How long a failed execution keeps the pill red. Use `0` to keep it until the session works again. |
+| `freshSeconds` | `number` | `20` | How long presence data counts as fresh (5–600). |
+| `idleSeconds` | `number` | `25` | How long the host waits without any live instance before exiting (5–3600). |
+| `errorHoldSeconds` | `number` | `90` | How long a failed execution keeps the pill red (0–3600). Use `0` to keep it until the session works again. |
 | `mark` | `boolean` | `false` | Draw the small o mark before the word in the pill. Off by default: the window is just the word, the mark belongs to the tray icon. |
 | `shellPath` | `string` | `null` | Force a specific PowerShell executable. |
 
@@ -151,7 +151,7 @@ All options are optional. Defaults shown.
 
 ## Switching the renderer
 
-Three ways, none of them needs a config edit or a restart. The choice is kept in the plugin storage, and the running host is replaced immediately, with the pill coming back where it was.
+Three ways, none of them needs a config edit or a restart. The choice is kept in the plugin storage and mirrored to `mode.json` so every instance agrees, and the running host is replaced immediately, with the pill coming back where it was.
 
 **Click it.** Right click the pill for `Show in tray`, or right click the tray icon for `Show as window`. The host asks the plugin for the change and it lands in about a second.
 
@@ -170,7 +170,7 @@ popup_mode({ mode: "window" | "tray" | "toggle" | "reset" })
 opencode api post /api/session/<sessionID>/command --data '{"command":"popup-toggle","text":""}'
 ```
 
-> A command from the prompt travels through the client and leaves a request file next to the presence data; every server instance watches it and applies the change, the same path the popup menu uses. The TUI entrypoint stays palette-only on purpose: the client appends every server command to the `/` list, so giving the client commands a slash name too would show each one twice.
+> The prompt commands run on the server and apply the change directly. The palette and the popup menu leave a request file next to the presence data instead, and every server instance watches it — same outcome, one path per surface. The TUI entrypoint stays palette-only on purpose: the client appends every server command to the `/` list, so giving the client commands a slash name too would show each one twice.
 
 `reset` (or `/popup-reset`) forgets the choice and goes back to the `mode` of the config.
 
@@ -183,7 +183,7 @@ OpenCode server
   └── plugin instance (one per location)
         ├── subscribes to the server event stream
         ├── tracks busy sessions      → session.status, session.execution.*, ...
-        └── writes %TEMP%\opencode-status-popup\state\<project>.json every 3 s
+        └── writes %TEMP%\opencode-status-popup\state\<project>-<hash>.json every 3 s
                                               │
                         one PowerShell host ──┘  reads every presence file,
                         (named mutex per state dir) aggregates them and paints
@@ -191,6 +191,7 @@ OpenCode server
 
 - **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Permission prompts come from `permission.asked` / `permission.replied`. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
 - **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
+- **State directory**: next to the presence files it holds `host.json` (the running host: pid, renderer and the settings it renders, rewritten as a heartbeat), `mode.json` (the renderer chosen at runtime, shared by every instance), `mode.request` (a switch waiting for the next server tick) and the two logs, `plugin.log` and `host.log`.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed.
 - **Tray identity**: the icon is registered through `Shell_NotifyIcon` with a fixed GUID (see `host/TrayIcon.cs`), so the shell remembers the place you dragged it to across restarts, unlike the executable-plus-uid slot that every PowerShell tray icon shares.
 
@@ -233,7 +234,7 @@ npm run preview:tray -- --keep
 - `--seconds N` — stop by itself after N seconds.
 - `--keep` — leave the host running when the preview exits.
 
-`pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-window.out`, which is the quickest way to read a script error.
+`pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-<mode>.out` (`test-window.out`, or `test-tray.out` for `-Mode tray`), which is the quickest way to read a script error.
 
 ### Debugging inside OpenCode
 

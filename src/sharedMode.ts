@@ -30,3 +30,39 @@ export function writeSharedMode(path: string, mode: PopupMode | undefined): void
     // a failed write only delays the convergence of other instances
   }
 }
+
+/**
+ * Reads and consumes a mode request left by the TUI palette or the host menu.
+ *
+ * The file is replaced atomically by its writers, so a payload that does not
+ * parse can only be a leftover: it is dropped, or the watcher would wedge on
+ * it. A read that fails is left alone instead — the file may be briefly locked
+ * (AV, indexer) and the caller polls again 100 ms later.
+ */
+export function consumeModeRequest(path: string): { mode?: unknown } | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    return undefined; // nothing waiting, or a transient lock
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    dropModeRequest(path);
+    return undefined;
+  }
+
+  dropModeRequest(path);
+  return typeof parsed === "object" && parsed !== null ? (parsed as { mode?: unknown }) : {};
+}
+
+function dropModeRequest(path: string): void {
+  try {
+    rmSync(path, { force: true });
+  } catch {
+    // a failed removal only re-applies an idempotent switch on the next tick
+  }
+}

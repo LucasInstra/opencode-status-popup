@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import type { Plugin } from "@opencode/plugin/tui";
 import { modeRequestPathOf, statusStateDir } from "./paths";
 
@@ -13,7 +13,7 @@ import { modeRequestPathOf, statusStateDir } from "./paths";
  * deduplicating), so a slash name here would show each command twice.
  *
  * A command drops a request file next to the presence data. Every server
- * instance watches that file every 500 ms, applies the change to the shared
+ * instance watches that file every 100 ms, applies the change to the shared
  * mode and restarts the host, exactly like the popup menu does.
  *
  * The SDK is imported as a type only: the runtime barrel pulls in solid-js,
@@ -45,14 +45,22 @@ export default {
     const request = (mode: RequestedMode): boolean => {
       try {
         mkdirSync(stateDir, { recursive: true });
-        writeFileSync(modeRequestPathOf(stateDir), JSON.stringify({ mode }));
+        // Replace the file atomically: the server polls it from its own
+        // process, so it must never read a half written payload.
+        const target = modeRequestPathOf(stateDir);
+        const temporary = `${target}.tmp`;
+        writeFileSync(temporary, JSON.stringify({ mode }));
+        renameSync(temporary, target);
         return true;
       } catch {
         return false;
       }
     };
 
-    context.ui.slot({
+    // The slot owns the keymap layer registered during its render, so returning
+    // its disposer is what unregisters the palette on a reload or a disable;
+    // without it every reload would stack a second copy of the four commands.
+    const disposeSlot = context.ui.slot({
       append: "app",
       render() {
         context.keymap.layer(() => ({
@@ -74,5 +82,7 @@ export default {
         return null;
       },
     });
+
+    return () => disposeSlot();
   },
 } satisfies Plugin.Definition;

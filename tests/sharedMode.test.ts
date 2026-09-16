@@ -1,12 +1,14 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { readSharedMode, writeSharedMode } from "../src/sharedMode";
+import { afterAll, describe, expect, it } from "vitest";
+import { consumeModeRequest, readSharedMode, writeSharedMode } from "../src/sharedMode";
 
 describe("shared mode file", () => {
   const dir = mkdtempSync(join(tmpdir(), "status-popup-mode-"));
   const file = join(dir, "mode.json");
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it("round trips a mode", () => {
     writeSharedMode(file, "tray");
@@ -32,6 +34,37 @@ describe("shared mode file", () => {
     expect(readSharedMode(file)).toBeUndefined();
     rmSync(file, { force: true });
     expect(readSharedMode(file)).toBeUndefined();
-    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("mode request", () => {
+  const dir = mkdtempSync(join(tmpdir(), "status-popup-request-"));
+  const file = join(dir, "mode.request");
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("consumes a valid request and reports its mode", () => {
+    writeFileSync(file, '{"mode":"toggle"}');
+    expect(consumeModeRequest(file)).toEqual({ mode: "toggle" });
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("drops a malformed request instead of wedging on it", () => {
+    writeFileSync(file, "{ not json");
+    expect(consumeModeRequest(file)).toBeUndefined();
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("leaves the file alone when it cannot be read", () => {
+    const unreadable = join(dir, "a-directory");
+    mkdirSync(unreadable, { recursive: true });
+    // A failed read may be a transient lock; the watcher must see it again.
+    expect(consumeModeRequest(unreadable)).toBeUndefined();
+    expect(existsSync(unreadable)).toBe(true);
+  });
+
+  it("returns nothing when there is no request at all", () => {
+    expect(consumeModeRequest(file)).toBeUndefined();
+    expect(existsSync(file)).toBe(false);
   });
 });

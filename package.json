@@ -45,7 +45,7 @@
     "smoke": "vitest run tests/smoke.test.ts",
     "prepublishOnly": "npm run typecheck && npm test",
     "docs:images": "pwsh -NoProfile -ExecutionPolicy Bypass -Sta -File scripts/render-docs.ps1",
-    "docs:gif": "node scripts/build-gif.mjs",
+    "docs:gif": "node scripts/build-gif.mjs typing && node scripts/build-gif.mjs tray",
     "preview": "node scripts/preview.mjs",
     "preview:cycle": "node scripts/preview.mjs --watch",
     "preview:tray": "node scripts/preview.mjs --mode tray",
@@ -53,7 +53,7 @@
     "preview:stop": "node scripts/preview.mjs --stop"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.0.4"
+    "@opencode/plugin": "^2.0.5"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

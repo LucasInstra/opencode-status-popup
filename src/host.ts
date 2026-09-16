@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import type { PopupPosition } from "./config";
 import { hostInfoPathOf, hostMutexName } from "./paths";
 import { listPresenceFiles } from "./presence";
 
@@ -10,11 +11,13 @@ export interface HostSettings {
   fresh: number;
   idle: number;
   mark: boolean;
+  position: PopupPosition;
 }
 
 export const HOST_FRESH_MS = 8000;
 
-interface HostInfo {
+/** The heartbeat the host writes to host.json: one field per rendered setting. */
+export interface HostInfo {
   pid?: number;
   mode?: string;
   word?: string;
@@ -31,6 +34,66 @@ export interface HostSupervisorOptions {
   readonly settings: HostSettings;
   readonly shellPath?: string | null;
   readonly log?: (message: string) => void;
+}
+
+export interface HostLaunch {
+  readonly scriptPath: string;
+  readonly stateDir: string;
+  readonly settings: HostSettings;
+}
+
+/**
+ * The command line the host is started with. The host echoes the same settings
+ * back in its heartbeat, so this and `hostInfoMatches` have to stay in step.
+ */
+export function buildHostArgs(launch: HostLaunch): string[] {
+  const { settings } = launch;
+  return [
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-WindowStyle",
+    "Hidden",
+    "-Sta",
+    "-File",
+    launch.scriptPath,
+    "-Mode",
+    settings.mode,
+    "-StateDir",
+    launch.stateDir,
+    "-MutexName",
+    hostMutexName(launch.stateDir),
+    "-Mark",
+    settings.mark ? "1" : "0",
+    "-Word",
+    settings.word,
+    "-TypeMs",
+    String(settings.typeMs),
+    "-FreshSeconds",
+    String(settings.fresh),
+    "-IdleSeconds",
+    String(settings.idle),
+    "-Position",
+    settings.position,
+  ];
+}
+
+/**
+ * True when a live host already renders exactly these settings. `position` is
+ * deliberately not compared: once the pill has shown, the remembered
+ * `window.json` decides where it appears, so restarting on a changed corner
+ * would churn the host without moving anything.
+ */
+export function hostInfoMatches(info: HostInfo, settings: HostSettings): boolean {
+  return (
+    info.mode === settings.mode &&
+    info.word === settings.word &&
+    info.typeMs === settings.typeMs &&
+    info.fresh === settings.fresh &&
+    info.idle === settings.idle &&
+    info.mark === settings.mark
+  );
 }
 
 /**
@@ -128,34 +191,7 @@ export class HostSupervisor {
   }
 
   private buildArgs(): string[] {
-    const { settings } = this.options;
-    return [
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-WindowStyle",
-      "Hidden",
-      "-Sta",
-      "-File",
-      this.options.scriptPath,
-      "-Mode",
-      settings.mode,
-      "-StateDir",
-      this.options.stateDir,
-      "-MutexName",
-      hostMutexName(this.options.stateDir),
-      "-Mark",
-      settings.mark ? "1" : "0",
-      "-Word",
-      settings.word,
-      "-TypeMs",
-      String(settings.typeMs),
-      "-FreshSeconds",
-      String(settings.fresh),
-      "-IdleSeconds",
-      String(settings.idle),
-    ];
+    return buildHostArgs(this.options);
   }
 
   private readInfo(): HostInfo | undefined {
@@ -181,15 +217,7 @@ export class HostSupervisor {
   }
 
   private matches(info: HostInfo): boolean {
-    const { settings } = this.options;
-    return (
-      info.mode === settings.mode &&
-      info.word === settings.word &&
-      info.typeMs === settings.typeMs &&
-      info.fresh === settings.fresh &&
-      info.idle === settings.idle &&
-      info.mark === settings.mark
-    );
+    return hostInfoMatches(info, this.options.settings);
   }
 
   private kill(pid: number | undefined): void {

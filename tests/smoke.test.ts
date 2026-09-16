@@ -49,6 +49,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   const store = new Map<string, unknown>();
   const commands: string[] = [];
   const tools: string[] = [];
+  const disposals: string[] = [];
   const context = {
     options: { mode, idleSeconds: 30 },
     location: { directory },
@@ -61,7 +62,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     command: {
       transform: async (callback: (editor: { add: (definition: { name: string }) => void }) => void) => {
         callback({ add: (definition) => void commands.push(definition.name) });
-        return { dispose: async () => {} };
+        return { dispose: async () => void disposals.push("command") };
       },
     },
     tool: {
@@ -76,7 +77,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
           namespace: (definition) => void (namespace = definition.name),
           add: (definition) => void tools.push(`${namespace}_${definition.name}`),
         });
-        return { dispose: async () => {} };
+        return { dispose: async () => void disposals.push("tool") };
       },
     },
   };
@@ -89,6 +90,12 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     expect(existsSync(presence)).toBe(true);
     expect(readJson(presence)?.phase).toBe("idle");
     expect(commands).toContain("popup-tray");
+    expect([...commands].sort()).toEqual([
+      "popup-reset",
+      "popup-toggle",
+      "popup-tray",
+      "popup-window",
+    ]);
     expect(tools).toContain("popup_mode");
 
     queue.push({ type: "session.status", data: { sessionID: "ses_smoke", status: { type: "busy" } } });
@@ -129,6 +136,8 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   }
 
   expect(existsSync(presence)).toBe(false);
+  // The cleanup must dispose the registrations, or a reload stacks them.
+  expect(disposals.sort()).toEqual(["command", "tool"]);
   if (hostPid > 0) await waitFor(() => (isAlive(hostPid) ? undefined : true));
 
   const logPath = join(stateDir, "host.log");

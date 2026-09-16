@@ -49,6 +49,16 @@ describe("tui entrypoint", () => {
       expect(context.toasts.at(-1)?.variant).toBe("info");
     }
     expect(context.toasts).toHaveLength(4);
+    // The request file is replaced atomically; the temporary never survives.
+    expect(existsSync(`${modeRequestPathOf(stateDir)}.tmp`)).toBe(false);
+  });
+
+  it("hands the slot claim back, so a reload cannot stack the palette", () => {
+    const { cleanup, disposed } = mount();
+
+    expect(disposed()).toBe(false);
+    cleanup();
+    expect(disposed()).toBe(true);
   });
 
   it("reports an error instead of throwing when the request cannot be written", () => {
@@ -83,6 +93,8 @@ interface Layer {
 interface Harness {
   context: { toasts: Toasts[] };
   layer: () => Layer;
+  cleanup: () => void;
+  disposed: () => boolean;
 }
 
 function mount(stateDir?: string): Harness {
@@ -92,13 +104,16 @@ function mount(stateDir?: string): Harness {
   const toasts: Toasts[] = [];
   let claim: { render: () => unknown } | undefined;
   let registered: Layer | undefined;
+  let disposed = false;
 
   const context = {
     toasts,
     ui: {
       slot: (next: { render: () => unknown }) => {
         claim = next;
-        return () => {};
+        return () => {
+          disposed = true;
+        };
       },
       toast: { show: (options: Toasts) => void toasts.push(options) },
     },
@@ -109,7 +124,7 @@ function mount(stateDir?: string): Harness {
     },
   };
 
-  tui.setup(context as never);
+  const cleanup = tui.setup(context as never);
   if (!claim) throw new Error("setup did not register a slot claim");
   (claim as { render: () => unknown }).render();
 
@@ -119,6 +134,10 @@ function mount(stateDir?: string): Harness {
       if (!registered) throw new Error("render did not register a keymap layer");
       return registered;
     },
+    cleanup: () => {
+      cleanup?.();
+    },
+    disposed: () => disposed,
   };
 }
 
