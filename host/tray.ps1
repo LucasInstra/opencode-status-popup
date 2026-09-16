@@ -241,7 +241,7 @@ function Show-TrayIcon {
   $script:TrayRingRows = 7
   # Pixels per tick, tuned so a full build takes about the same time whatever
   # the ring size ends up being.
-  $script:TrayBuildStep = [Math]::Max(2, [int][Math]::Ceiling($script:TrayRingCells.Count / 10))
+  $script:TrayBuildStep = [Math]::Max(2, [int][Math]::Round($script:TrayRingCells.Count / 10))
 
   # One fixed GUID for this plugin: the shell keys the tray settings (including
   # where the user dragged the icon) on it, so they survive restarts.

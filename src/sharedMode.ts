@@ -55,14 +55,18 @@ export function consumeModeRequest(path: string): { mode?: unknown } | undefined
     return undefined;
   }
 
-  dropModeRequest(path);
+  // Only hand the request over once it is gone: a file that resists removal
+  // (an indexer holding it) would otherwise be applied again every tick, and
+  // `toggle` is not idempotent.
+  if (!dropModeRequest(path)) return undefined;
   return typeof parsed === "object" && parsed !== null ? (parsed as { mode?: unknown }) : {};
 }
 
-function dropModeRequest(path: string): void {
+function dropModeRequest(path: string): boolean {
   try {
     rmSync(path, { force: true });
+    return true;
   } catch {
-    // a failed removal only re-applies an idempotent switch on the next tick
+    return false;
   }
 }

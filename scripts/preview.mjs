@@ -55,7 +55,10 @@ if (options.seconds > 0) {
 
 if (options.watch) {
   const cycle = ["busy", "retry", "error", "permission", "idle"];
-  let index = 0;
+  // Continue the cycle from the state that is already showing, which is what
+  // `--state` promises; a plain `--watch` starts at busy as before.
+  const start = cycle.indexOf(state);
+  let index = start >= 0 ? start : 0;
   setInterval(() => {
     index = (index + 1) % cycle.length;
     state = cycle[index];

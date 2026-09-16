@@ -23,6 +23,8 @@ Notable changes to this project, newest first. The format follows
   before the file is removed, so a switch cannot be lost to a half written file.
 - `npm run docs:gif` rebuilds `docs/typing.gif` and `docs/tray.gif`, which is
   what the README always promised.
+- Tray: the letter builds at the documented pace again (about two pixels per
+  250 ms tick; the step rounded up to three for the 22-cell ring).
 
 ### Changed
 
@@ -30,9 +32,12 @@ Notable changes to this project, newest first. The format follows
 - Dev: `host/popup.ps1` defaults `-Mark` to off, so `npm run preview*` and the
   foreground dev host match the documented default (the plugin always passed the
   option explicitly).
+- Dev: `npm run preview -- --watch --state <s>` continues the cycle from `<s>`
+  instead of always resuming at `retry`, which is what the README promised.
 - Docs: the state directory files are named in the README (`host.json`,
-  `mode.json`, `mode.request`), the option ranges are documented, and the stale
-  "500 ms" comment and the prompt command path were corrected.
+  `mode.json`, `mode.request`, and the preview harness's `preview.json`), the
+  option ranges are documented, and the stale "500 ms" comment and the prompt
+  command path were corrected.
 
 ## 0.2.2 — 2026-09-16
 
