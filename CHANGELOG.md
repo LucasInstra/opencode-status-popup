@@ -4,6 +4,16 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- TUI: `/popup` no longer lists every command twice. The `/` completion appends
+  the server commands to the keymap slashes without deduplicating, so the
+  commands registered by `tui.ts` showed up next to the identical server ones.
+  The TUI entrypoint is palette-only now (`ctrl+p`); `/popup` keeps the server
+  commands and the palette keeps the client-side ones.
+
 ## 0.2.1 — 2026-09-16
 
 ### Added

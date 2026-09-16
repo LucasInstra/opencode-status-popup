@@ -19,15 +19,12 @@ describe("tui entrypoint", () => {
     expect(typeof tui.setup).toBe("function");
   });
 
-  it("registers the four popup slash commands in a keymap layer", () => {
+  it("registers the four popup commands in a keymap layer, palette-only", () => {
     const { context, layer } = mount();
     const commands = layer().commands ?? [];
-    expect(commands.map((command) => command.slash?.name)).toEqual([
-      "popup-window",
-      "popup-tray",
-      "popup-toggle",
-      "popup-reset",
-    ]);
+    // No slash names: the `/` completion lists the server commands, and a slash
+    // name here would make every command show up twice.
+    expect(commands.every((command) => command.slash === undefined)).toBe(true);
     expect(commands.every((command) => command.palette === true)).toBe(true);
     expect(commands.map((command) => command.id)).toEqual([
       "popup.window",

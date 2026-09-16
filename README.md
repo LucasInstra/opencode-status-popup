@@ -161,16 +161,16 @@ Three ways, none of them needs a config edit or a restart. The choice is kept in
 popup_mode({ mode: "window" | "tray" | "toggle" | "reset" })
 ```
 
-**Commands.** `/popup-window`, `/popup-tray`, `/popup-toggle` and `/popup-reset` are registered twice, for the TUI and for the server:
+**Commands.** `/popup-window`, `/popup-tray`, `/popup-toggle` and `/popup-reset` work from both surfaces, each command exactly once:
 
-- `tui.ts` puts them in the `/` autocomplete and the command palette, so typing `/popup` is enough.
-- the server keeps the same commands, which is what makes them work through the API and from other clients:
+- the **command palette** (`ctrl+p`) lists the four entries registered by `tui.ts`; they run in the client and answer immediately.
+- the **`/` autocomplete** lists the same names from the server, so typing `/popup` is enough; the prompt sends the command to the server, and the server commands are also what makes them work through the API and from other clients:
 
 ```sh
 opencode api post /api/session/<sessionID>/command --data '{"command":"popup-toggle","text":""}'
 ```
 
-> A command from the prompt travels through the client and leaves a request file next to the presence data; every server instance watches it and applies the change, the same path the popup menu uses. The server commands stay for the API — the palette never listed them, which is why the TUI entrypoint exists.
+> A command from the prompt travels through the client and leaves a request file next to the presence data; every server instance watches it and applies the change, the same path the popup menu uses. The TUI entrypoint stays palette-only on purpose: the client appends every server command to the `/` list, so giving the client commands a slash name too would show each one twice.
 
 `reset` (or `/popup-reset`) forgets the choice and goes back to the `mode` of the config.
 

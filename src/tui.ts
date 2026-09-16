@@ -3,10 +3,14 @@ import type { Plugin } from "@opencode/plugin/tui";
 import { modeRequestPathOf, statusStateDir } from "./paths";
 
 /**
- * TUI entrypoint. Commands registered here run in the client process, so they
- * show up in the `/` completion and the command palette — the server commands
- * of src/index.ts are known to the server only, which is why they never
- * appeared in the palette.
+ * TUI entrypoint. Commands registered here run in the client process and show
+ * up in the command palette, where they answer immediately — the server
+ * commands of src/index.ts are known to the server only, so they never reach
+ * the palette.
+ *
+ * They are deliberately palette-only: the `/` autocomplete already lists every
+ * server command (the client appends them to the keymap slashes without
+ * deduplicating), so a slash name here would show each command twice.
  *
  * A command drops a request file next to the presence data. Every server
  * instance watches that file every 500 ms, applies the change to the shared
@@ -24,13 +28,6 @@ const TITLE: Record<RequestedMode, string> = {
   tray: "Popup: show in the tray",
   toggle: "Popup: switch renderer",
   reset: "Popup: back to the configured renderer",
-};
-
-const SLASH: Record<RequestedMode, string> = {
-  window: "popup-window",
-  tray: "popup-tray",
-  toggle: "popup-toggle",
-  reset: "popup-reset",
 };
 
 const DONE: Record<RequestedMode, string> = {
@@ -64,7 +61,6 @@ export default {
             id: `popup.${mode}`,
             title: TITLE[mode],
             group: "Popup",
-            slash: { name: SLASH[mode] },
             palette: true,
             run() {
               const sent = request(mode);
