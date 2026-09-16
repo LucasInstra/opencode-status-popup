@@ -130,6 +130,27 @@ function Save-PopupPosition {
   } catch { }
 }
 
+# The breathing runs on the WPF composition clock: smooth on screen and no per
+# tick work in PowerShell. BeginAnimation takes the property over until it is
+# cleared again.
+function Start-PopupPulse {
+  $animation = New-Object System.Windows.Media.Animation.DoubleAnimation
+  $animation.From = $script:PopPulseMin
+  $animation.To = 1.0
+  $animation.Duration = New-Object System.Windows.Duration ([TimeSpan]::FromMilliseconds([Math]::Max(120, $script:PopPulseMs / 2)))
+  $animation.AutoReverse = $true
+  $animation.RepeatBehavior = [System.Windows.Media.Animation.RepeatBehavior]::Forever
+  try {
+    $animation.EasingFunction = New-Object System.Windows.Media.Animation.SineEase
+  } catch { }
+  $script:PopWindow.BeginAnimation([System.Windows.Window]::OpacityProperty, $animation)
+}
+
+function Stop-PopupPulse {
+  $script:PopWindow.BeginAnimation([System.Windows.Window]::OpacityProperty, $null)
+  $script:PopWindow.Opacity = 1.0
+}
+
 function Update-PopupAnimation {
   if (-not $script:PopVisible -or $script:PopClosing) { return }
 
@@ -137,23 +158,18 @@ function Update-PopupAnimation {
 
   # States that are not "work in progress": show the whole word and breathe.
   if ($phase -eq "idle" -or $phase -eq "error" -or $phase -eq "permission") {
-    # Few frames per second are enough for the breathing: accumulate the
-    # elapsed time and repaint only when ~300ms went by. The phase advances by
-    # the same elapsed slice, so the breathing period does not change.
-    $script:PopIdleElapsed += $script:PopTypeMs
-    if ($script:PopIdleElapsed -lt $script:PopIdleMs) { return }
-    $step = $script:PopIdleElapsed
-    $script:PopIdleElapsed = 0
-
-    $period = $script:PopPulseMs
-    $script:PopOpacityT = ($script:PopOpacityT + $step) % $period
-    $wave = 0.5 + 0.5 * [Math]::Cos(2 * [Math]::PI * $script:PopOpacityT / $period)
-    $script:PopWindow.Opacity = $script:PopPulseMin + ((1.0 - $script:PopPulseMin) * $wave)
+    if (-not $script:PopPulsing) {
+      $script:PopPulsing = $true
+      Start-PopupPulse
+    }
     Set-PopupWord -Count $script:PopWord.Length -Static $true -Suffix $script:PopSuffix
     return
   }
 
-  $script:PopIdleElapsed = 0
+  if ($script:PopPulsing) {
+    $script:PopPulsing = $false
+    Stop-PopupPulse
+  }
   $script:PopWindow.Opacity = 1.0
   $script:PopBlink = ($script:PopBlink + 1) % 6
   if ($script:PopBlink -lt 3) { $script:PopTip.Opacity = 1.0 } else { $script:PopTip.Opacity = 0.35 }
@@ -283,11 +299,7 @@ function Show-PopupWindow {
   $script:PopIndex = 0
   $script:PopHold = 0
   $script:PopBlink = 0
-  $script:PopOpacityT = 0.0
-  # The breathing is a slow, cheap visual. The animation timer runs at typeMs
-  # for the typing, but the idle states only need a frame every ~300ms.
-  $script:PopIdleElapsed = 0
-  $script:PopIdleMs = 300
+  $script:PopPulsing = $false
   $script:PopState = [pscustomobject]@{ Phase = "idle"; Busy = 0; Retry = 0; Errors = 0; Permissions = 0; Detail = ""; Writers = 0; Projects = @() }
   $script:PopSignature = ""
   $script:PopMissingTicks = 0

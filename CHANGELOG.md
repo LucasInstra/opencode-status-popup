@@ -26,9 +26,9 @@ Notable changes to this project, newest first. The format follows
   still the fallback when no window can be found.
 - Presence files already carried the writer pid; the host now keeps it in the
   aggregate, which is what makes the focus target findable.
-- The idle states repaint about every 300ms instead of every `typeMs` tick: the
-  breathing period is unchanged, but the pill no longer redraws seven times a
-  second while nothing happens.
+- The idle states breathe on the WPF composition clock (a `DoubleAnimation` on
+  the window opacity) instead of repainting from PowerShell on every `typeMs`
+  tick: same 2.4s period, now smooth and with no per tick work in the host.
 - Mode switches are faster: the plugin reacts to a request within 100ms (was
   500ms) and the tray frames are drawn on demand instead of all at startup —
   measured 408ms to bring the icon up, was ~1000ms, taking a full switch from
