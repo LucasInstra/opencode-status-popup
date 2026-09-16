@@ -117,6 +117,7 @@ function Update-TrayProgressIcon {
 
 function Update-TrayTick {
   $agg = Get-AggregateState -FreshSeconds $script:TrayFresh
+  $script:TrayAggregate = $agg
   $script:TrayTicks++
 
   if (($script:TrayTicks % 8) -eq 0) { Write-HostHeartbeat -Fields $script:TrayHostFields }
@@ -223,6 +224,7 @@ function Show-TrayIcon {
   $script:TrayPhase = "idle"
   $script:TrayClosing = $false
   $script:TrayTooltip = "opencode"
+  $script:TrayAggregate = $null
   $script:TrayRingColumns = 6
   $script:TrayRingRows = 7
   # Pixels per tick, tuned so a full build takes about the same time whatever
@@ -249,6 +251,10 @@ function Show-TrayIcon {
   $itemWindow.Add_Click({
     try { Save-ModeRequest -Mode "window" } catch { }
   })
+  $itemDetails = $menu.Items.Add("Show details")
+  $itemDetails.Add_Click({
+    try { $script:TrayTrayIcon.ShowBalloon("opencode", $script:TrayTooltip) } catch { }
+  })
   $itemClose = $menu.Items.Add("Close")
   $itemClose.Add_Click({
     try {
@@ -265,7 +271,20 @@ function Show-TrayIcon {
     try { $script:TrayMenu.Show([System.Windows.Forms.Cursor]::Position) } catch { }
   })
   $script:TrayTrayIcon.add_LeftClick({
-    try { $script:TrayTrayIcon.ShowBalloon("opencode", $script:TrayTooltip) } catch { }
+    # Left click brings the OpenCode terminal forward. The details live in the
+    # right click menu now; the balloon is the fallback when no window is found.
+    try {
+      $targetPid = 0
+      if ($null -ne $script:TrayAggregate) { $targetPid = [int]$script:TrayAggregate.Pid }
+      if ($targetPid -gt 0 -and (Focus-OpenCodeWindow -ProcessId $targetPid)) {
+        Write-PopupLog ("focus terminal pid={0}" -f $targetPid)
+      } else {
+        Write-PopupLog ("focus terminal failed pid={0}" -f $targetPid)
+        $script:TrayTrayIcon.ShowBalloon("opencode", $script:TrayTooltip)
+      }
+    } catch {
+      Write-PopupLog ("focus terminal error: " + $_.Exception.Message)
+    }
   })
 
   $registered = $script:TrayTrayIcon.Show($script:TrayBlinkFrames["idle"][0].Icon)

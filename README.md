@@ -144,7 +144,8 @@ All options are optional. Defaults shown.
 ## Interaction
 
 - **Drag** the pill with the left mouse button. The position is remembered in `%TEMP%\opencode-status-popup\window.json` and checked every couple of seconds, so the pill reopens where you left it even if the host was killed, the mode was switched, or OpenCode restarted.
-- **Right click** the pill for `Show in tray`, `Reset position` and `Close`. In `tray` mode, **right click** the icon for `Show as window` and `Close`, and **left click** it for a balloon with the current state.
+- **Left click the tray icon** to bring the OpenCode terminal forward: the host walks the process chain to the terminal window (Windows Terminal, VS Code, WezTerm, the desktop app) and restores it when minimized. When no window is found it falls back to the details balloon.
+- **Right click** the pill for `Show in tray`, `Reset position` and `Close`. In `tray` mode, **right click** the icon for `Show as window`, `Show details` and `Close` — `Show details` is the balloon with the live state.
 - The window never appears in the taskbar or the Alt+Tab list, and it does not activate itself when it appears.
 - The tray icon keeps a **constant tooltip** (`opencode-status-popup`) on purpose: Windows uses the tooltip as part of the icon identity and hides an icon whose tooltip changes. The live state is in the balloon you get on left click.
 

@@ -19,6 +19,12 @@ public static extern int SetWindowLong(System.IntPtr hWnd, int nIndex, int dwNew
 public static extern bool SetProcessDPIAware();
 [System.Runtime.InteropServices.DllImport("user32.dll")]
 public static extern bool DestroyIcon(System.IntPtr hIcon);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool SetForegroundWindow(System.IntPtr hWnd);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool ShowWindowAsync(System.IntPtr hWnd, int nCmdShow);
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool IsIconic(System.IntPtr hWnd);
 "@
 }
 
@@ -51,6 +57,71 @@ function Initialize-PopupHost {
   $script:WindowStatePath = Join-Path $script:StateDirPath "window.json"
 
   Initialize-PopupNative
+}
+
+# Walks the parent chain of a process looking for a window: the terminal that
+# hosts the TUI (Windows Terminal, VS Code, WezTerm, the desktop app) shows up
+# as a windowed ancestor of the OpenCode process.
+function Get-AncestorWindowHandle {
+  param([int]$ProcessId)
+
+  $current = $ProcessId
+  for ($depth = 0; $depth -lt 8 -and $current -gt 0; $depth++) {
+    $process = Get-Process -Id $current -ErrorAction SilentlyContinue
+    if ($null -eq $process) { return [IntPtr]::Zero }
+    if ($process.MainWindowHandle -ne 0) { return $process.MainWindowHandle }
+
+    $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$current" -ErrorAction SilentlyContinue
+    if ($null -eq $parent) { return [IntPtr]::Zero }
+    $next = [int]$parent.ParentProcessId
+    if ($next -le 0 -or $next -eq $current) { return [IntPtr]::Zero }
+    $current = $next
+  }
+
+  return [IntPtr]::Zero
+}
+
+# The TUI starts the service and the service outlives its parent, so the chain
+# of the process that wrote the presence file is often dead. Other processes of
+# the same executable still have the terminal in their chain.
+function Get-TerminalWindowHandle {
+  param([int]$ProcessId)
+
+  if ($ProcessId -le 0) { return [IntPtr]::Zero }
+
+  $direct = Get-AncestorWindowHandle -ProcessId $ProcessId
+  if ($direct -ne [IntPtr]::Zero) { return $direct }
+
+  $self = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  if ($null -eq $self) { return [IntPtr]::Zero }
+
+  $siblings = @(Get-Process -Name $self.ProcessName -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $ProcessId })
+  foreach ($sibling in $siblings) {
+    $handle = Get-AncestorWindowHandle -ProcessId $sibling.Id
+    if ($handle -ne [IntPtr]::Zero) { return $handle }
+  }
+
+  return [IntPtr]::Zero
+}
+
+# Brings the OpenCode terminal forward for a click on the popup: restore it when
+# minimized and hand it the foreground. Returns false when no window was found,
+# so callers can fall back to the details balloon.
+function Focus-OpenCodeWindow {
+  param([int]$ProcessId)
+
+  $handle = Get-TerminalWindowHandle -ProcessId $ProcessId
+  if ($handle -eq [IntPtr]::Zero) { return $false }
+
+  try {
+    if ([PopupWin32.Native]::IsIconic($handle)) {
+      [void][PopupWin32.Native]::ShowWindowAsync($handle, 9)
+    }
+    [void][PopupWin32.Native]::SetForegroundWindow($handle)
+    return $true
+  } catch {
+    return $false
+  }
 }
 
 function Write-PopupLog {
@@ -174,9 +245,13 @@ function Get-AggregateState {
   if ($permissions -gt 0) { $phase = "permission" }
 
   $detail = ""
+  # The pid of a live writer: the tray uses it to bring the terminal forward.
+  $writerPid = 0
   foreach ($entry in $entries) {
+    if ($writerPid -eq 0 -and $entry.pid) { $writerPid = [int]$entry.pid }
     if ($entry.phase -eq $phase -and $entry.detail) {
       $detail = [string]$entry.detail
+      if ($entry.pid) { $writerPid = [int]$entry.pid }
       break
     }
   }
@@ -184,6 +259,7 @@ function Get-AggregateState {
   return [pscustomobject]@{
     Online      = ($entries.Count -gt 0)
     Writers     = $entries.Count
+    Pid         = $writerPid
     Busy        = $busy
     Retry       = $retry
     Errors      = $errors
@@ -198,7 +274,7 @@ function Get-AggregateSignature {
   param($Aggregate)
 
   $projects = @($Aggregate.Projects) -join ","
-  return "{0}|{1}|{2}|{3}|{4}|{5}|{6}" -f $Aggregate.Phase, $Aggregate.Busy, $Aggregate.Retry, $Aggregate.Errors, $Aggregate.Permissions, $Aggregate.Detail, $projects
+  return "{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}" -f $Aggregate.Phase, $Aggregate.Pid, $Aggregate.Busy, $Aggregate.Retry, $Aggregate.Errors, $Aggregate.Permissions, $Aggregate.Detail, $projects
 }
 
 function Format-AggregateTooltip {

@@ -16,6 +16,17 @@ Notable changes to this project, newest first. The format follows
   `tui.ts` that re-exports it for plugin directories, where a loader resolves a
   `tui` file next to `index.ts` instead of the package exports.
 
+### Changed
+
+- Tray: a **left click brings the OpenCode terminal forward** instead of showing
+  the balloon. The host walks the parent chain of the process that wrote the
+  presence file (and, when that chain died with the service, other processes of
+  the same executable) to the terminal window, restoring it when minimized. The
+  live state moved to `Show details` in the right click menu, and the balloon is
+  still the fallback when no window can be found.
+- Presence files already carried the writer pid; the host now keeps it in the
+  aggregate, which is what makes the focus target findable.
+
 ## 0.2.0 — 2026-09-16
 
 ### Added
