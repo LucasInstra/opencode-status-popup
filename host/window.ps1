@@ -137,14 +137,23 @@ function Update-PopupAnimation {
 
   # States that are not "work in progress": show the whole word and breathe.
   if ($phase -eq "idle" -or $phase -eq "error" -or $phase -eq "permission") {
+    # Few frames per second are enough for the breathing: accumulate the
+    # elapsed time and repaint only when ~300ms went by. The phase advances by
+    # the same elapsed slice, so the breathing period does not change.
+    $script:PopIdleElapsed += $script:PopTypeMs
+    if ($script:PopIdleElapsed -lt $script:PopIdleMs) { return }
+    $step = $script:PopIdleElapsed
+    $script:PopIdleElapsed = 0
+
     $period = $script:PopPulseMs
-    $script:PopOpacityT = ($script:PopOpacityT + $script:PopTypeMs) % $period
+    $script:PopOpacityT = ($script:PopOpacityT + $step) % $period
     $wave = 0.5 + 0.5 * [Math]::Cos(2 * [Math]::PI * $script:PopOpacityT / $period)
     $script:PopWindow.Opacity = $script:PopPulseMin + ((1.0 - $script:PopPulseMin) * $wave)
     Set-PopupWord -Count $script:PopWord.Length -Static $true -Suffix $script:PopSuffix
     return
   }
 
+  $script:PopIdleElapsed = 0
   $script:PopWindow.Opacity = 1.0
   $script:PopBlink = ($script:PopBlink + 1) % 6
   if ($script:PopBlink -lt 3) { $script:PopTip.Opacity = 1.0 } else { $script:PopTip.Opacity = 0.35 }
@@ -275,6 +284,10 @@ function Show-PopupWindow {
   $script:PopHold = 0
   $script:PopBlink = 0
   $script:PopOpacityT = 0.0
+  # The breathing is a slow, cheap visual. The animation timer runs at typeMs
+  # for the typing, but the idle states only need a frame every ~300ms.
+  $script:PopIdleElapsed = 0
+  $script:PopIdleMs = 300
   $script:PopState = [pscustomobject]@{ Phase = "idle"; Busy = 0; Retry = 0; Errors = 0; Permissions = 0; Detail = ""; Writers = 0; Projects = @() }
   $script:PopSignature = ""
   $script:PopMissingTicks = 0

@@ -182,9 +182,9 @@ export default Plugin.define({
       });
     });
 
-    // Menu items in the host ("Show in tray" / "Show as window") leave a
-    // request file: the renderer is decided here, so they are applied on the
-    // next tick and the host is replaced.
+    // Menu items in the host ("Show in tray" / "Show as window") and the TUI
+    // commands leave a request file: the renderer is decided here, so they are
+    // applied on the next 100 ms tick and the host is replaced.
     const requestFile = modeRequestPathOf(stateDir);
     const watchRequest = setInterval(() => {
       let requested: unknown;
@@ -198,7 +198,7 @@ export default Plugin.define({
       void applyRequest(requested).then((applied) => {
         trace(`mode request ${String(requested)} applied=${String(applied)}`);
       });
-    }, 500);
+    }, 100);
     watchRequest.unref?.();
 
     void (async () => {

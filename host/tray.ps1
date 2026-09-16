@@ -78,6 +78,24 @@ function New-LetterFrame {
   return [pscustomobject]@{ Icon = $icon; Bitmap = $bitmap; Handle = $handle }
 }
 
+# Frames are drawn on demand and cached: building every phase up front used to
+# cost about a second of the host startup, which is most of a mode switch.
+function Get-TrayFrame {
+  param(
+    [string]$Phase,
+    [int]$Visible,
+    [double]$Alpha = 1.0
+  )
+
+  $key = "{0}|{1}|{2}" -f $Phase, $Visible, $Alpha
+  $cached = $script:TrayFrameCache[$key]
+  if ($cached) { return $cached }
+
+  $frame = New-LetterFrame -Size $script:TrayFrameSize -VisibleCells $Visible -Rgb $script:TrayPalette[$Phase] -Alpha $Alpha
+  $script:TrayFrameCache[$key] = $frame
+  return $frame
+}
+
 function Update-TrayProgressIcon {
   $phase = $script:TrayPhase
 
@@ -94,7 +112,7 @@ function Update-TrayProgressIcon {
     } else {
       $script:TrayProgress = [Math]::Min($total, $script:TrayProgress + $script:TrayBuildStep)
     }
-    $script:TrayTrayIcon.Update($script:TrayBuildFrames[$phase][$script:TrayProgress].Icon)
+    $script:TrayTrayIcon.Update((Get-TrayFrame -Phase $phase -Visible $script:TrayProgress).Icon)
     return
   }
 
@@ -104,8 +122,16 @@ function Update-TrayProgressIcon {
   if ($phase -eq "permission") { $cadence = 1 }
   elseif ($phase -eq "error") { $cadence = 2 }
 
-  $frames = $script:TrayBlinkFrames[$phase]
-  if (-not $frames) { $frames = $script:TrayBlinkFrames["idle"] }
+  $frames = @(
+    Get-TrayFrame -Phase $phase -Visible $script:TrayRingCells.Count -Alpha 0.95
+    Get-TrayFrame -Phase $phase -Visible $script:TrayRingCells.Count -Alpha 0.35
+  )
+  if ($phase -ne "idle" -and $phase -ne "error" -and $phase -ne "permission") {
+    $frames = @(
+      Get-TrayFrame -Phase "idle" -Visible $script:TrayRingCells.Count -Alpha 0.95
+      Get-TrayFrame -Phase "idle" -Visible $script:TrayRingCells.Count -Alpha 0.35
+    )
+  }
 
   $script:TrayBlink = ($script:TrayBlink + 1) % ($cadence * 2)
   if ($script:TrayBlink -lt $cadence) {
@@ -195,26 +221,12 @@ function Show-TrayIcon {
   }
 
   $script:TrayRingCells = Get-OpenCodeRingCells
-  $script:TrayBuildFrames = @{}
-  foreach ($name in @("busy", "retry")) {
-    $frames = @()
-    # Index 0 is the empty icon, used only if the phase starts from nothing.
-    for ($visible = 0; $visible -le $script:TrayRingCells.Count; $visible++) {
-      $frames += (New-LetterFrame -Size $size -VisibleCells $visible -Rgb $palette[$name])
-    }
-    $script:TrayBuildFrames[$name] = $frames
-  }
-
-  $script:TrayBlinkFrames = @{}
-  foreach ($name in @("idle", "error", "permission")) {
-    $bright = New-LetterFrame -Size $size -VisibleCells $script:TrayRingCells.Count -Rgb $palette[$name] -Alpha 0.95
-    $dim = New-LetterFrame -Size $size -VisibleCells $script:TrayRingCells.Count -Rgb $palette[$name] -Alpha 0.35
-    $script:TrayBlinkFrames[$name] = @($bright, $dim)
-  }
-
-  $allFrames = @()
-  foreach ($group in $script:TrayBuildFrames.Values) { $allFrames += $group }
-  foreach ($group in $script:TrayBlinkFrames.Values) { $allFrames += $group }
+  $script:TrayFrameSize = $size
+  $script:TrayPalette = $palette
+  $script:TrayFrameCache = @{}
+  # Only the frame the icon shows before any presence arrives is built here;
+  # every other frame is drawn the first time its phase needs it.
+  [void](Get-TrayFrame -Phase "idle" -Visible $script:TrayRingCells.Count -Alpha 0.95)
 
   $script:TrayProgress = 0
   $script:TrayHold = 0
@@ -287,7 +299,7 @@ function Show-TrayIcon {
     }
   })
 
-  $registered = $script:TrayTrayIcon.Show($script:TrayBlinkFrames["idle"][0].Icon)
+  $registered = $script:TrayTrayIcon.Show((Get-TrayFrame -Phase "idle" -Visible $script:TrayRingCells.Count -Alpha 0.95).Icon)
   Write-PopupLog ("tray icon registered={0} guid={1}" -f $registered, $script:TrayIconIdentity)
 
   $timer = New-Object System.Windows.Forms.Timer
@@ -306,7 +318,7 @@ function Show-TrayIcon {
     try { $timer.Stop() } catch { }
     try { $script:TrayTrayIcon.Dispose() } catch { }
     try { $script:TrayMenu.Dispose() } catch { }
-    foreach ($frame in $allFrames) {
+    foreach ($frame in $script:TrayFrameCache.Values) {
       try { [void][PopupWin32.Native]::DestroyIcon($frame.Handle) } catch { }
       try { $frame.Icon.Dispose() } catch { }
       try { $frame.Bitmap.Dispose() } catch { }
