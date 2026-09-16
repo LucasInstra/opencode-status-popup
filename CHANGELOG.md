@@ -18,6 +18,9 @@ Notable changes to this project, newest first. The format follows
 
 ### Changed
 
+- Pill: a **left click brings the OpenCode terminal forward**, the same focus
+  target the tray icon uses. A press only counts as a click when the window does
+  not move past the system drag distance, so dragging still moves the pill.
 - Tray: a **left click brings the OpenCode terminal forward** instead of showing
   the balloon. The host walks the parent chain of the process that wrote the
   presence file (and, when that chain died with the service, other processes of

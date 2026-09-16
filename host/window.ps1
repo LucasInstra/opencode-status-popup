@@ -340,11 +340,35 @@ function Show-PopupWindow {
   [void]$menu.Items.Add($itemClose)
   $script:PopWindow.ContextMenu = $menu
 
+  # A click and a drag share the left button, the same split the tray icon
+  # uses: DragMove keeps the cursor at the same spot inside the window, so the
+  # window moving past the system drag distance is what tells them apart. A
+  # click brings the OpenCode terminal forward, a drag just moves the pill.
   $script:PopWindow.Add_MouseLeftButtonDown({
     try {
+      $left = $script:PopWindow.Left
+      $top = $script:PopWindow.Top
       $script:PopWindow.DragMove()
       Save-PopupPosition
-    } catch { }
+
+      $dragX = [System.Windows.SystemParameters]::MinimumHorizontalDragDistance
+      $dragY = [System.Windows.SystemParameters]::MinimumVerticalDragDistance
+      if ($dragX -le 0) { $dragX = 4 }
+      if ($dragY -le 0) { $dragY = 4 }
+      $movedX = [Math]::Abs($script:PopWindow.Left - $left)
+      $movedY = [Math]::Abs($script:PopWindow.Top - $top)
+      if ($movedX -ge $dragX -or $movedY -ge $dragY) { return }
+
+      $targetPid = 0
+      if ($null -ne $script:PopState) { $targetPid = [int]$script:PopState.Pid }
+      if ($targetPid -gt 0 -and (Focus-OpenCodeWindow -ProcessId $targetPid)) {
+        Write-PopupLog ("focus terminal pid={0}" -f $targetPid)
+      } else {
+        Write-PopupLog ("focus terminal failed pid={0}" -f $targetPid)
+      }
+    } catch {
+      Write-PopupLog ("pill click error: " + $_.Exception.Message)
+    }
   })
 
   $script:PopWindow.Add_SourceInitialized({

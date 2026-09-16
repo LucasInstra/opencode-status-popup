@@ -25,7 +25,7 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 
 - **You are never left guessing** — is it working, retrying, stuck, or waiting for you?
 - **The permission state comes first**: a session blocked on a permission decision outranks everything else, so you can be in another window and still notice.
-- **Out of the way**: the pill has no border, no taskbar button, it never steals focus, it reopens where you left it and you can drag it anywhere. Prefer nothing on screen? Right click it and pick `Show in tray` (or ask *"put the popup in the tray"*).
+- **Out of the way**: the pill has no border, no taskbar button, it never steals focus, it reopens where you left it and you can drag it anywhere. A plain click on it brings the OpenCode terminal forward. Prefer nothing on screen? Right click it and pick `Show in tray` (or ask *"put the popup in the tray"*).
 - **Several projects, one indicator**: every OpenCode instance reports in and the popup shows the union.
 - **Nothing to install twice**: the UI is a small PowerShell process that starts on demand and exits by itself; the plugin itself is plain TypeScript.
 
@@ -39,7 +39,7 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 | `error` | `opencode!`, red, breathing | the o, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
 | `permission` | `opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
 
-Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. In tray mode, a left click shows a balloon with the detail — `needs you: bash git push origin main`, `error: 429 provider.rate-limit` — and lists every project involved.
+Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. In tray mode, `Show details` in the right click menu opens a balloon with the live detail — `needs you: bash git push origin main`, `error: 429 provider.rate-limit` — and lists every project involved.
 
 ![the five states](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/states.png)
 
@@ -143,11 +143,11 @@ All options are optional. Defaults shown.
 
 ## Interaction
 
-- **Drag** the pill with the left mouse button. The position is remembered in `%TEMP%\opencode-status-popup\window.json` and checked every couple of seconds, so the pill reopens where you left it even if the host was killed, the mode was switched, or OpenCode restarted.
-- **Left click the tray icon** to bring the OpenCode terminal forward: the host walks the process chain to the terminal window (Windows Terminal, VS Code, WezTerm, the desktop app) and restores it when minimized. When no window is found it falls back to the details balloon.
+- **Left click** the pill or the tray icon to bring the OpenCode terminal forward: the host walks the process chain to the terminal window (Windows Terminal, VS Code, WezTerm, the desktop app) and restores it when minimized. The tray icon falls back to the details balloon when no window is found; the pill stays quiet and logs it.
+- **Drag** the pill with the left mouse button. A press only counts as a click when it does not move the window past the system drag distance, so the same button does both. The position is remembered in `%TEMP%\opencode-status-popup\window.json` and checked every couple of seconds, so the pill reopens where you left it even if the host was killed, the mode was switched, or OpenCode restarted.
 - **Right click** the pill for `Show in tray`, `Reset position` and `Close`. In `tray` mode, **right click** the icon for `Show as window`, `Show details` and `Close` — `Show details` is the balloon with the live state.
 - The window never appears in the taskbar or the Alt+Tab list, and it does not activate itself when it appears.
-- The tray icon keeps a **constant tooltip** (`opencode-status-popup`) on purpose: Windows uses the tooltip as part of the icon identity and hides an icon whose tooltip changes. The live state is in the balloon you get on left click.
+- The tray icon keeps a **constant tooltip** (`opencode-status-popup`) on purpose: Windows uses the tooltip as part of the icon identity and hides an icon whose tooltip changes. The live state is in the balloon behind `Show details`.
 
 ## Switching the renderer
 
