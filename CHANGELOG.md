@@ -1,0 +1,59 @@
+# Changelog
+
+Notable changes to this project, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## 0.2.0 — 2026-09-16
+
+### Added
+
+- **The tray icon is the letter `o` of the wordmark, built pixel by pixel**: a 6x7
+  grid, a one-cell stroke, pixels appearing clockwise from the top left (about two
+  every 250 ms), the finished letter holding for half a second before it starts
+  over. The color follows the state — blue while working, amber on a retry, red on
+  a failure, violet while a permission is pending — and the letter blinks when it
+  is waiting on you.
+- `mark` option to draw the same small `o` before the word on the pill. Off by
+  default; the mark belongs to the tray icon.
+- **Switch renderers without editing the config or restarting**: `/popup-window`,
+  `/popup-tray`, `/popup-toggle` and `/popup-reset` commands, a `popup_mode` tool
+  (`window | tray | toggle | reset`), and a right-click menu on both renderers
+  (`Show in tray` / `Show as window`). `reset` forgets the choice and goes back to
+  the `mode` of the config.
+- The renderer choice is **shared between plugin instances** through `mode.json` in
+  the state directory, read by every instance on each tick.
+- The pill position is also saved **while it moves**, every 2 seconds, on top of the
+  saves on drag end and close.
+- **Tracing** with `OPENCODE_STATUS_POPUP_DEBUG=1`: what the plugin sees (events,
+  phases, host starts) is appended to `%TEMP%\opencode-status-popup\plugin.log`.
+- A root `index.ts`, because a plugin loaded from a directory is resolved through
+  `index.ts` and not through the `exports` field of `package.json`; a checkout can
+  now be pointed at directly in `plugins`.
+- CI on GitHub Actions (Windows): typecheck, unit tests and the smoke test.
+
+### Fixed
+
+- The tray letter now reads as an `o` instead of a square: the corners are closed
+  and the stroke is one cell thick (2 px at 125% DPI), taller than wide like the
+  glyph in the wordmark.
+- Two OpenCode instances with different configurations no longer fight over the
+  host, each killing the renderer the other one started.
+- A configured plugin directory loads (through the new root `index.ts`), and the
+  freshly added mark stays off by default on the pill.
+
+## 0.1.0 — 2026-09-15
+
+First release.
+
+### Added
+
+- Always-on-top pill that types the word out while the agent works, and an
+  alternative tray renderer.
+- Five states with the priority `permission > error > retry > busy > idle`: amber
+  while a provider request is being retried, red after a failed execution (kept for
+  `errorHoldSeconds`), violet with a `?` when OpenCode is waiting for a permission.
+- One presence file per location, aggregated by a single PowerShell host shared by
+  every instance, with expiry of stale data and self-exit when nothing is running.
+- Options: `enabled`, `mode`, `word`, `typeMs`, `position`, `freshSeconds`,
+  `idleSeconds`, `errorHoldSeconds`, `shellPath`.
