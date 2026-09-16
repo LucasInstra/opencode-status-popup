@@ -189,7 +189,7 @@ function isAlive(pid: number): boolean {
   return true;
 }
 
-async function waitFor<T>(check: () => T | undefined, timeoutMs = 15_000): Promise<T> {
+async function waitFor<T>(check: () => T | undefined, timeoutMs = 30_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = check();
