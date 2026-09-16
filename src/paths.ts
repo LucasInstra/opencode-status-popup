@@ -21,6 +21,14 @@ export function modeRequestPathOf(stateDir: string): string {
   return join(stateDir, "mode.request");
 }
 
+/**
+ * The chosen renderer, shared by every plugin instance: the host is a single
+ * process, so the mode cannot live in per instance state or instances fight.
+ */
+export function sharedModePathOf(stateDir: string): string {
+  return join(stateDir, "mode.json");
+}
+
 export function hostScriptPath(): string {
   return fileURLToPath(new URL("../host/popup.ps1", import.meta.url));
 }

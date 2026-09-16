@@ -9,10 +9,12 @@ import {
   modeRequestPathOf,
   presenceFileOf,
   projectNameOf,
+  sharedModePathOf,
   statusStateDir,
 } from "./paths";
 import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
 import { PresenceWriter } from "./presence";
+import { readSharedMode, writeSharedMode } from "./sharedMode";
 import { SessionActivity, type RawEvent } from "./status";
 
 const PLUGIN_ID = "opencode.status-popup";
@@ -33,9 +35,13 @@ export default Plugin.define({
     const project = projectNameOf(directory);
     const trace = createDebugLog(stateDir);
 
+    const sharedModePath = sharedModePathOf(stateDir);
+    // The renderer is shared state, not per instance: every instance supervises
+    // the same host, so they read the choice from the shared file and follow it
+    // (see the supervisor tick below) instead of killing each other's host.
     const stored = await ctx.storage.get(MODE_PREFERENCE_KEY).catch(() => undefined);
     const settings: HostSettings = {
-      mode: resolveMode(stored, config.mode),
+      mode: readSharedMode(sharedModePath) ?? resolveMode(stored, config.mode),
       word: config.word,
       typeMs: config.typeMs,
       fresh: config.freshSeconds,
@@ -71,6 +77,17 @@ export default Plugin.define({
       presence.refresh(snapshot);
     }, HEARTBEAT_MS);
     const supervise = setInterval(() => {
+      // Follow the shared choice instead of insisting on this instance's own:
+      // when two instances disagree, whoever ticks first would otherwise kill
+      // the host the other one started, forever.
+      const shared = readSharedMode(sharedModePath);
+      const desired = shared ?? config.mode;
+      if (desired !== settings.mode) {
+        trace(`following shared mode=${desired} (was ${settings.mode})`);
+        settings.mode = desired;
+        presence.setMode(desired);
+        presence.sync(snapshot);
+      }
       void host.ensure();
     }, SUPERVISE_MS);
     heartbeat.unref?.();
@@ -84,6 +101,7 @@ export default Plugin.define({
         presence.setMode(mode);
         presence.sync(snapshot);
       }
+      writeSharedMode(sharedModePath, persist ? mode : undefined);
       await (persist
         ? ctx.storage.set(MODE_PREFERENCE_KEY, mode)
         : ctx.storage.remove(MODE_PREFERENCE_KEY)
