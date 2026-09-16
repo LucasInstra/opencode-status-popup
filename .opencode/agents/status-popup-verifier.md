@@ -48,7 +48,7 @@ Checks, in this order:
 
 1. `git status --short` — record the tree state first; dirty files are context for the report, not a failure by themselves.
 2. `npm run typecheck`
-3. `npm test` — expect 8 test files / 50 tests with the smoke file skipped (48 passed, 2 skipped). Counts drift between releases; report actual vs expected.
+3. `npm test` — expect 9 test files / 52 tests with the smoke file skipped (50 passed, 2 skipped). Counts drift between releases; report actual vs expected.
 4. `$env:SMOKE=1; npm run smoke` — loads the plugin, drives synthetic events and spawns a real PowerShell host for both renderers. It briefly opens the pill window and a tray icon on the desktop; that is the check working, not a failure.
 5. `npm pack --dry-run --json` — the tarball file list (20 files as of 0.2.2) must cover `index.ts`, `tui.ts`, `src/**`, `host/**` (every `.ps1` plus `TrayIcon.cs`), `README.md`, `LICENSE`, and nothing the runtime does not need.
 

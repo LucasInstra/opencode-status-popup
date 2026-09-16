@@ -58,6 +58,7 @@ Evidence to read afterwards, under `%TEMP%\opencode-status-popup\`:
 - `host.log` — `start mode=...`, the single-instance guard, `tray icon registered=`.
 - `host.json` — host pid, mode and freshness.
 - `window.json` — the remembered pill position; it is saved every couple of seconds while the pill is visible (and on close), so it exists even when the pill was never dragged.
+- `position.json` — the configured corner, written by the plugin; the host applies it when it places the pill (first show, or `Reset position`).
 - `test-<mode>.out` — raw foreground output from `dev-host.ps1`.
 
 Rules:

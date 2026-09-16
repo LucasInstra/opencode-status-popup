@@ -118,7 +118,7 @@ All options are optional. Defaults shown.
 | `mode` | `"window" \| "tray"` | `"window"` | Which renderer to use. The `/popup-*` commands override it until `/popup-reset`. |
 | `word` | `string` | `"opencode"` | Word that types itself out. Max 24 characters. |
 | `typeMs` | `number` | `140` | Milliseconds per typed character (40–2000). |
-| `position` | `"bottom-right" \| "bottom-left" \| "top-right" \| "top-left"` | `"bottom-right"` | Where the pill appears the first time. After you drag it, the position is remembered; changing the option later does not move a pill that is already placed. |
+| `position` | `"bottom-right" \| "bottom-left" \| "top-right" \| "top-left"` | `"bottom-right"` | Where the pill is placed on its first show, and where `Reset position` sends it back to. Dragging is remembered separately; changing the option applies on the next placement. |
 | `freshSeconds` | `number` | `20` | How long presence data counts as fresh (5–600). |
 | `idleSeconds` | `number` | `25` | How long the host waits without any live instance before exiting (5–3600). |
 | `errorHoldSeconds` | `number` | `90` | How long a failed execution keeps the pill red (0–3600). Use `0` to keep it until the session works again. |
@@ -191,7 +191,7 @@ OpenCode server
 
 - **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Permission prompts come from `permission.asked` / `permission.replied`. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
 - **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
-- **State directory**: next to the presence files it holds `host.json` (the running host: pid, renderer and the settings it renders, rewritten as a heartbeat), `mode.json` (the renderer chosen at runtime, shared by every instance), `mode.request` (a switch waiting for the next server tick), `window.json` (where the pill was last placed) and the two logs, `plugin.log` and `host.log`. The preview harness adds a fake `state\preview.json` of its own while it runs.
+- **State directory**: next to the presence files it holds `host.json` (the running host: pid, renderer and the settings it renders, rewritten as a heartbeat), `mode.json` (the renderer chosen at runtime, shared by every instance), `mode.request` (a switch waiting for the next server tick), `position.json` (the configured corner the host applies when it places the pill), `window.json` (where the pill was last placed) and the two logs, `plugin.log` and `host.log`. The preview harness adds a fake `state\preview.json` of its own while it runs.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed.
 - **Tray identity**: the icon is registered through `Shell_NotifyIcon` with a fixed GUID (see `host/TrayIcon.cs`), so the shell remembers the place you dragged it to across restarts, unlike the executable-plus-uid slot that every PowerShell tray icon shares.
 

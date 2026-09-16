@@ -10,9 +10,9 @@ Notable changes to this project, newest first. The format follows
 
 - `position` now reaches the host: it was parsed and documented but never passed
   on the command line, so a fresh profile always opened bottom-right and
-  `Reset position` ignored the configured corner. A pill you already placed
-  keeps its remembered position, and changing the corner does not restart the
-  running host.
+  `Reset position` ignored the configured corner. The corner is resolved when
+  the pill is placed (first show, or reset), so a change applies without moving
+  a pill you already dragged and without restarting the host.
 - TUI: the entrypoint hands its slot claim back. `ui.slot` returns the disposer
   and the keymap layer is owned by the slot, so a reload or a disable no longer
   leaves the four palette commands behind and stacks a second copy.
@@ -35,9 +35,9 @@ Notable changes to this project, newest first. The format follows
 - Dev: `npm run preview -- --watch --state <s>` continues the cycle from `<s>`
   instead of always resuming at `retry`, which is what the README promised.
 - Docs: the state directory files are named in the README (`host.json`,
-  `mode.json`, `mode.request`, and the preview harness's `preview.json`), the
-  option ranges are documented, and the stale "500 ms" comment and the prompt
-  command path were corrected.
+  `mode.json`, `mode.request`, `position.json`, and the preview harness's
+  `preview.json`), the option ranges are documented, and the stale "500 ms"
+  comment and the prompt command path were corrected.
 
 ## 0.2.2 — 2026-09-16
 

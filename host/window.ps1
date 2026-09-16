@@ -74,6 +74,32 @@ function Set-PopupPhase {
   $script:PopShell.BorderBrush = $border
 }
 
+# The plugin publishes the configured corner next to the presence data. The
+# host is shared and outlives a config change, so resolving the position here,
+# at placement time, is what lets the option apply without a restart; the
+# launch argument stays as the fallback for a host started by tooling that does
+# not write the file.
+function Get-ConfiguredPosition {
+  param([string]$Fallback = "bottom-right")
+
+  try {
+    $path = Join-Path $script:StateDirPath "position.json"
+    if ([System.IO.File]::Exists($path)) {
+      $parsed = [System.IO.File]::ReadAllText($path) | ConvertFrom-Json
+      $value = [string]$parsed.position
+      switch ($value) {
+        "bottom-right" { return $value }
+        "bottom-left" { return $value }
+        "top-right" { return $value }
+        "top-left" { return $value }
+      }
+    }
+  } catch { }
+
+  if ([string]::IsNullOrEmpty($Fallback)) { return "bottom-right" }
+  return $Fallback
+}
+
 function Set-PopupPosition {
   $work = [System.Windows.SystemParameters]::WorkArea
   $window = $script:PopWindow
@@ -97,7 +123,7 @@ function Set-PopupPosition {
     return
   }
 
-  switch ($script:PopPosition) {
+  switch (Get-ConfiguredPosition -Fallback $script:PopPosition) {
     "bottom-left" {
       $window.Left = $work.Left + $margin
       $window.Top = $work.Bottom - $height - $margin - 26
@@ -317,6 +343,7 @@ function Show-PopupWindow {
     try {
       if ([System.IO.File]::Exists($script:WindowStatePath)) { [System.IO.File]::Delete($script:WindowStatePath) }
       Set-PopupPosition
+      Write-PopupLog ("reset position={0}" -f (Get-ConfiguredPosition -Fallback $script:PopPosition))
     } catch { }
   })
 

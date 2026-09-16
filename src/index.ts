@@ -9,11 +9,13 @@ import {
   presenceFileOf,
   projectNameOf,
   sharedModePathOf,
+  sharedPositionPathOf,
   statusStateDir,
 } from "./paths";
 import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
 import { PresenceWriter } from "./presence";
 import { readSharedMode, consumeModeRequest, writeSharedMode } from "./sharedMode";
+import { writeSharedPosition } from "./sharedPosition";
 import { SessionActivity, type RawEvent } from "./status";
 
 const PLUGIN_ID = "opencode.status-popup";
@@ -39,6 +41,9 @@ export default Plugin.define({
     // the same host, so they read the choice from the shared file and follow it
     // (see the supervisor tick below) instead of killing each other's host.
     const stored = await ctx.storage.get(MODE_PREFERENCE_KEY).catch(() => undefined);
+    // Published for the host, which reads it when it places the pill: a changed
+    // corner applies on the next Reset position without a host restart.
+    writeSharedPosition(sharedPositionPathOf(stateDir), config.position);
     const settings: HostSettings = {
       mode: readSharedMode(sharedModePath) ?? resolveMode(stored, config.mode),
       word: config.word,

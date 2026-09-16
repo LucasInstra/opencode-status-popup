@@ -29,6 +29,15 @@ export function sharedModePathOf(stateDir: string): string {
   return join(stateDir, "mode.json");
 }
 
+/**
+ * The configured corner, published for the host: it resolves the position from
+ * here when it actually places the pill (first show, or Reset position), which
+ * is what lets the option apply without restarting a running host.
+ */
+export function sharedPositionPathOf(stateDir: string): string {
+  return join(stateDir, "position.json");
+}
+
 export function hostScriptPath(): string {
   return fileURLToPath(new URL("../host/popup.ps1", import.meta.url));
 }
