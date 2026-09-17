@@ -130,9 +130,19 @@ function Write-PopupLog {
   try {
     if ([System.IO.File]::Exists($script:LogPath)) {
       $info = New-Object System.IO.FileInfo($script:LogPath)
-      if ($info.Length -gt 262144) { [System.IO.File]::Delete($script:LogPath) }
+      if ($info.Length -gt 262144) {
+        # Rotate instead of deleting: the newest lines are the useful ones, and
+        # deleting threw them all away at once.
+        $previous = "$($script:LogPath).1"
+        if ([System.IO.File]::Exists($previous)) { [System.IO.File]::Delete($previous) }
+        [System.IO.File]::Move($script:LogPath, $previous)
+      }
     }
-  } catch { }
+  } catch {
+    # A rotation that failed (a reader holds the file) drops the line instead
+    # of growing the log past the cap.
+    return
+  }
 
   $line = "{0} {1}" -f (Get-Date -Format "HH:mm:ss.fff"), $Message
   try {

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -34,15 +34,35 @@ describe("createDebugLog", () => {
     expect(lines[1]).toMatch(/ second$/);
   });
 
-  it("stops writing once the file is past the cap", () => {
+  it("rotates once the file is past the cap, keeping one previous generation", () => {
     process.env.OPENCODE_STATUS_POPUP_DEBUG = "1";
     const stateDir = stateDirFor("cap");
     const file = join(stateDir, "plugin.log");
     const full = "x".repeat(512 * 1024 + 1);
     writeFileSync(file, full);
 
-    createDebugLog(stateDir)("dropped");
-    expect(readFileSync(file, "utf8")).toBe(full);
+    createDebugLog(stateDir)("after rotate");
+
+    expect(readFileSync(`${file}.1`, "utf8")).toBe(full);
+    const lines = readFileSync(file, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/ after rotate$/);
+  });
+
+  it("replaces the previous generation on the next rotation", () => {
+    process.env.OPENCODE_STATUS_POPUP_DEBUG = "1";
+    const stateDir = stateDirFor("rotate-twice");
+    const file = join(stateDir, "plugin.log");
+    const log = createDebugLog(stateDir);
+
+    log("first");
+    appendFileSync(file, "y".repeat(512 * 1024 + 1));
+    log("second");
+
+    const previous = readFileSync(`${file}.1`, "utf8");
+    expect(previous).toContain("first");
+    expect(previous).not.toContain("second");
+    expect(readFileSync(file, "utf8")).toContain("second");
   });
 });
 

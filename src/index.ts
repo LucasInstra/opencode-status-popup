@@ -13,7 +13,7 @@ import {
   statusStateDir,
 } from "./paths";
 import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
-import { PresenceWriter } from "./presence";
+import { PresenceWriter, reapStalePresenceFiles } from "./presence";
 import { readSharedMode, consumeModeRequest, writeSharedMode } from "./sharedMode";
 import { writeSharedPosition } from "./sharedPosition";
 import { SessionActivity, type RawEvent } from "./status";
@@ -56,6 +56,10 @@ export default Plugin.define({
     trace(`setup directory=${directory} project=${project} mode=${settings.mode} pid=${process.pid}`);
 
     const activity = new SessionActivity({ errorHoldMs: config.errorHoldSeconds * 1000 });
+    // Reap before this instance writes: files a killed session left behind
+    // would otherwise linger, and the shutdown check counts any file as a
+    // live writer.
+    reapStalePresenceFiles(stateDir, config.freshSeconds * 1000);
     const presence = new PresenceWriter(presenceFileOf(stateDir, directory), {
       instance: instanceSlug(directory),
       project,
@@ -218,6 +222,10 @@ export default Plugin.define({
     })();
 
     return async () => {
+      // Latch the supervisor off before anything else: a mode switch already
+      // in flight must not spawn a host after this cleanup took the presence
+      // file away.
+      host.deactivate();
       controller.abort();
       clearInterval(heartbeat);
       clearInterval(supervise);
@@ -233,6 +241,10 @@ export default Plugin.define({
         }
       }
       presence.dispose();
+      // With our file gone, reap again: a stale file from a crashed session
+      // must not veto the stop. Live instances stay, so this only stops the
+      // host when it really is the last one.
+      reapStalePresenceFiles(stateDir, config.freshSeconds * 1000);
       host.shutdown();
     };
   },

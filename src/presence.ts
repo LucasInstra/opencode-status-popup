@@ -1,5 +1,14 @@
-import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
+import { presenceDirOf } from "./paths";
 import type { ActivitySnapshot } from "./status";
 
 export const PRESENCE_VERSION = 1;
@@ -95,8 +104,73 @@ export class PresenceWriter {
 
 export function listPresenceFiles(stateDir: string): string[] {
   try {
-    return readdirSync(join(stateDir, "state")).filter((name) => name.endsWith(".json"));
+    return readdirSync(presenceDirOf(stateDir)).filter((name) => name.endsWith(".json"));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Removes what a killed instance left behind: presence files whose `updated`
+ * has not advanced for `freshMs`, payloads that cannot be parsed (a leftover
+ * from a corrupted write) and orphaned `*.tmp` writes. A file that cannot be
+ * read right now is left alone: Windows briefly locks files for readers (AV,
+ * indexer) and the next reap gets it.
+ *
+ * Returns the removed paths, so callers and tests can tell what happened.
+ */
+export function reapStalePresenceFiles(stateDir: string, freshMs: number, now = Date.now()): string[] {
+  const dir = presenceDirOf(stateDir);
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+
+  const removed: string[] = [];
+  for (const name of names) {
+    const file = join(dir, name);
+    if (name.endsWith(".json")) {
+      if (isStalePresence(file, freshMs, now) && remove(file)) removed.push(file);
+    } else if (name.endsWith(".tmp")) {
+      const age = fileAge(file, now);
+      if (age !== undefined && age > freshMs && remove(file)) removed.push(file);
+    }
+  }
+  return removed;
+}
+
+function isStalePresence(file: string, freshMs: number, now: number): boolean {
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch {
+    return false; // momentarily unreadable: leave it for the next reap
+  }
+  try {
+    const parsed = JSON.parse(raw) as { updated?: unknown };
+    return typeof parsed?.updated !== "number" || now - parsed.updated > freshMs;
+  } catch {
+    // The writers replace the file atomically, so a payload that does not
+    // parse can only be a leftover.
+    return true;
+  }
+}
+
+function fileAge(file: string, now: number): number | undefined {
+  try {
+    return now - statSync(file).mtimeMs;
+  } catch {
+    return undefined;
+  }
+}
+
+function remove(file: string): boolean {
+  try {
+    rmSync(file, { force: true });
+    return true;
+  } catch {
+    return false;
   }
 }
