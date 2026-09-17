@@ -1,5 +1,6 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import type { Plugin } from "@opencode/plugin/tui";
+import { parseConfig } from "./config";
 import { modeRequestPathOf, statusStateDir } from "./paths";
 
 /**
@@ -40,6 +41,11 @@ const DONE: Record<RequestedMode, string> = {
 export default {
   id: "opencode.status-popup",
   setup(context: Plugin.Context) {
+    // A disabled plugin must stay out of the palette: the commands would
+    // otherwise write mode requests nobody consumes and toast a success that
+    // never happens.
+    if (!parseConfig(context.options).enabled) return;
+
     const stateDir = statusStateDir(process.env.OPENCODE_STATUS_POPUP_DIR);
 
     const request = (mode: RequestedMode): boolean => {

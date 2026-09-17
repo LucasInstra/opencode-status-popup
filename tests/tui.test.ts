@@ -61,6 +61,16 @@ describe("tui entrypoint", () => {
     expect(disposed()).toBe(true);
   });
 
+  it("stays off the palette when the plugin is disabled", () => {
+    const stateDir = stateDirFor("disabled");
+    const { context, claimed, cleanup } = mount(stateDir, { enabled: false });
+
+    expect(claimed()).toBe(false);
+    expect(context.toasts).toEqual([]);
+    expect(existsSync(modeRequestPathOf(stateDir))).toBe(false);
+    cleanup();
+  });
+
   it("reports an error instead of throwing when the request cannot be written", () => {
     const blocked = join(stateDirFor("blocked"), "not-a-directory");
     writeFileSync(blocked, "a file where the state directory should be");
@@ -95,9 +105,10 @@ interface Harness {
   layer: () => Layer;
   cleanup: () => void;
   disposed: () => boolean;
+  claimed: () => boolean;
 }
 
-function mount(stateDir?: string): Harness {
+function mount(stateDir?: string, options: Record<string, unknown> = {}): Harness {
   if (stateDir) process.env.OPENCODE_STATUS_POPUP_DIR = stateDir;
   else delete process.env.OPENCODE_STATUS_POPUP_DIR;
 
@@ -107,6 +118,7 @@ function mount(stateDir?: string): Harness {
   let disposed = false;
 
   const context = {
+    options,
     toasts,
     ui: {
       slot: (next: { render: () => unknown }) => {
@@ -125,8 +137,7 @@ function mount(stateDir?: string): Harness {
   };
 
   const cleanup = tui.setup(context as never);
-  if (!claim) throw new Error("setup did not register a slot claim");
-  (claim as { render: () => unknown }).render();
+  claim?.render();
 
   return {
     context: { toasts },
@@ -138,6 +149,7 @@ function mount(stateDir?: string): Harness {
       cleanup?.();
     },
     disposed: () => disposed,
+    claimed: () => claim !== undefined,
   };
 }
 
