@@ -16,7 +16,21 @@ export interface HostSettings {
 
 export const HOST_FRESH_MS = 8000;
 
-/** The heartbeat the host writes to host.json: one field per rendered setting. */
+/**
+ * How long a shell gets to write its first heartbeat before the next
+ * interpreter is tried, and the ceiling while the shell is still alive (a cold
+ * machine can spend seconds in the first PowerShell start).
+ */
+const PROBE_MIN_MS = 2500;
+const PROBE_MAX_MS = 10_000;
+const PROBE_INTERVAL_MS = 250;
+
+/**
+ * The heartbeat the host writes to host.json: one field per rendered setting
+ * whose value is fixed for the life of the host. `position` is deliberately
+ * absent: the host resolves the corner when it places the pill, without a
+ * restart (see `hostInfoMatches`).
+ */
 export interface HostInfo {
   pid?: number;
   mode?: string;
@@ -44,7 +58,15 @@ export interface HostLaunch {
 
 /**
  * The command line the host is started with. The host echoes the same settings
- * back in its heartbeat, so this and `hostInfoMatches` have to stay in step.
+ * back in its heartbeat, so this and `hostInfoMatches` have to stay in step,
+ * with one deliberate exception: `position` is a placement-time value and is
+ * not part of the comparison (see below).
+ *
+ * The free-form values travel attached to their flags (`-Word:value`,
+ * `-StateDir:value`) on purpose: the host script uses `[CmdletBinding()]`, and
+ * PowerShell would otherwise read a value that looks like one of its
+ * parameters (`-Mark`, `-Word`, and the `-state` prefix of `-StateDir`) as a
+ * parameter name and fail before the host can log anything.
  */
 export function buildHostArgs(launch: HostLaunch): string[] {
   const { settings } = launch;
@@ -60,14 +82,12 @@ export function buildHostArgs(launch: HostLaunch): string[] {
     launch.scriptPath,
     "-Mode",
     settings.mode,
-    "-StateDir",
-    launch.stateDir,
+    `-StateDir:${launch.stateDir}`,
     "-MutexName",
     hostMutexName(launch.stateDir),
     "-Mark",
     settings.mark ? "1" : "0",
-    "-Word",
-    settings.word,
+    `-Word:${settings.word}`,
     "-TypeMs",
     String(settings.typeMs),
     "-FreshSeconds",
@@ -81,9 +101,10 @@ export function buildHostArgs(launch: HostLaunch): string[] {
 
 /**
  * True when a live host already renders exactly these settings. `position` is
- * deliberately not compared: once the pill has shown, the remembered
- * `window.json` decides where it appears, so restarting on a changed corner
- * would churn the host without moving anything.
+ * deliberately not compared: it is a placement-time value, so a changed corner
+ * applies at the next placement (first show, or Reset position) and restarting
+ * here would churn the host without moving anything. Do not add it to the list
+ * below: the live behaviour of the option depends on this omission.
  */
 export function hostInfoMatches(info: HostInfo, settings: HostSettings): boolean {
   return (
@@ -106,10 +127,25 @@ export function hostInfoMatches(info: HostInfo, settings: HostSettings): boolean
 export class HostSupervisor {
   private spawning: Promise<void> | undefined;
   private warned = false;
+  private closed = false;
+  private probing: ReturnType<typeof spawn> | undefined;
 
   constructor(private readonly options: HostSupervisorOptions) {}
 
+  /**
+   * Latches the supervisor off: once a shutdown is in flight, `ensure` must
+   * not spawn a replacement. Called before the rest of the cleanup so a mode
+   * switch already being applied cannot bring an orphan host back. A shell
+   * that is still starting is killed right here, because a fast shutdown may
+   * never reach the next probe tick.
+   */
+  deactivate(): void {
+    this.closed = true;
+    this.kill(this.probing?.pid);
+  }
+
   async ensure(): Promise<void> {
+    if (this.closed) return;
     if (!existsSync(this.options.scriptPath)) {
       this.warn(`host script missing at ${this.options.scriptPath}`);
       return;
@@ -129,6 +165,7 @@ export class HostSupervisor {
 
   /** Stops the host, but only when this instance was the last one alive. */
   shutdown(): void {
+    this.deactivate();
     const info = this.readInfo();
     if (!info?.pid || !this.isLive(info)) return;
     if (listPresenceFiles(this.options.stateDir).length > 0) return;
@@ -146,6 +183,7 @@ export class HostSupervisor {
   }
 
   private async doSpawn(): Promise<void> {
+    if (this.closed) return;
     // Someone else is already rendering; nothing to do.
     const current = this.readInfo();
     if (current && this.isLive(current)) return;
@@ -155,9 +193,10 @@ export class HostSupervisor {
     );
 
     for (const shell of candidates) {
+      if (this.closed) return;
       if (await this.tryShell(shell)) return;
     }
-    this.warn("could not start the popup host: no usable PowerShell found");
+    this.warn("could not start the popup host: no usable PowerShell found (see host.log)");
   }
 
   /**
@@ -167,27 +206,55 @@ export class HostSupervisor {
    * detached child silently fails to run here, and the Store build of pwsh
    * exits its launcher immediately, so the exit code says nothing about the
    * host. host.json is the only reliable proof that it came up.
+   *
+   * The first window is short, so a shell that cannot run falls through to the
+   * next one; a shell that is still alive when it elapses keeps a longer one,
+   * because a cold machine can take several seconds to reach the heartbeat.
    */
   private async tryShell(shell: string): Promise<boolean> {
     const before = this.readInfo()?.updated ?? 0;
+    let child: ReturnType<typeof spawn>;
     try {
-      const child = spawn(shell, this.buildArgs(), {
+      child = spawn(shell, this.buildArgs(), {
         stdio: "ignore",
         windowsHide: true,
       });
-      child.on("error", () => {});
-      child.unref();
     } catch {
       return false;
     }
 
-    for (let attempt = 0; attempt < 10; attempt++) {
-      await delay(250);
-      const info = this.readInfo();
-      if (info && this.isLive(info) && (info.updated ?? 0) > before) return true;
+    let exited = false;
+    let failed = false;
+    child.on("error", () => {
+      failed = true;
+    });
+    child.on("exit", () => {
+      exited = true;
+    });
+    child.unref();
+    this.probing = child;
+
+    try {
+      const started = Date.now();
+      for (;;) {
+        await delay(PROBE_INTERVAL_MS);
+        const info = this.readInfo();
+        if (info && this.isLive(info) && (info.updated ?? 0) > before) return true;
+        if (this.closed) {
+          // The shutdown started while this shell was starting: kill the child
+          // we spawned, or it would come up after the cleanup and idle alone.
+          this.kill(child.pid);
+          return false;
+        }
+        const elapsed = Date.now() - started;
+        if (failed) break;
+        if (elapsed >= PROBE_MIN_MS && (exited || elapsed >= PROBE_MAX_MS)) break;
+      }
+      this.log(`${shell} did not start the popup host`);
+      return false;
+    } finally {
+      if (this.probing === child) this.probing = undefined;
     }
-    this.log(`${shell} did not start the popup host`);
-    return false;
   }
 
   private buildArgs(): string[] {

@@ -210,8 +210,9 @@ async function spawnHost() {
     options.mode,
     "-StateDir",
     stateDir,
-    "-Word",
-    options.word,
+    // Attached to the flag: a bare value that looks like a host parameter
+    // (for example `--word -Mark`) would be bound as a parameter instead.
+    `-Word:${options.word || "opencode"}`,
     "-TypeMs",
     String(options.type),
   ];
