@@ -4,6 +4,47 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Stale and orphaned presence files are reaped: on the next plugin setup, and
+  again before the last instance decides whether the host can stop, so a file
+  left behind by a killed session neither lingers forever nor vetoes the stop.
+  Targets are files whose `updated` went stale, payloads that cannot be parsed
+  and orphaned `*.tmp` writes; a file that is momentarily unreadable is left
+  alone.
+
+### Changed
+
+- Both logs rotate at their cap instead of stopping or vanishing: `plugin.log`
+  keeps one previous generation as `plugin.log.1` (512 KiB), `host.log` does
+  the same (256 KiB), and the newest lines are never the ones thrown away.
+- TUI: with `enabled: false` the four palette commands are no longer
+  registered, so they cannot write a mode request nobody consumes or toast a
+  success that never happens.
+- The host is no longer given up on during a cold start: a shell that is still
+  alive after the first 2.5 s keeps its probe window (up to 10 s) instead of
+  being abandoned for the next interpreter, and a shell that cannot even start
+  fails over immediately. The "no usable PowerShell found" warning now fires
+  only when no shell reached a heartbeat, and points at `host.log`.
+
+### Fixed
+
+- Free-form host arguments that match a parameter name (`-Mark`, `-Word`, or
+  a dash-prefixed `OPENCODE_STATUS_POPUP_DIR`) no longer break the host before
+  it can log anything: the value travels attached to its flag
+  (`-Word:value`, `-StateDir:value`), which PowerShell binds as a value
+  whatever it looks like.
+- A mode switch already in flight when the plugin shuts down can no longer
+  spawn a host after the cleanup removed the presence file: the supervisor
+  latches off before the rest of the cleanup runs and kills a shell that was
+  still starting.
+- Docs: the `session.command` example uses `name` (the field the API expects),
+  `typeMs` is scoped to the pill, `OPENCODE_STATUS_POPUP_DIR` is documented,
+  and a live-vs-restart table says what a change to each option does to a
+  running host.
+
 ## 0.2.3 — 2026-09-16
 
 ### Fixed
@@ -24,7 +65,7 @@ Notable changes to this project, newest first. The format follows
 - `npm run docs:gif` rebuilds `docs/typing.gif` and `docs/tray.gif`, which is
   what the README always promised.
 - Tray: the letter builds at the documented pace again (about two pixels per
-  250 ms tick; the step rounded up to three for the 22-cell ring).
+  250 ms tick; the 22-cell ring rounds to a step of two).
 
 ### Changed
 
