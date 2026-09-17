@@ -52,6 +52,21 @@ describe("reapStalePresenceFiles", () => {
     expect(existsSync(recent)).toBe(true);
   });
 
+  it("leaves an unreadable entry alone and keeps reaping", () => {
+    const stateDir = stateDirFor("unreadable");
+    const now = Date.now();
+    // A directory named like a presence file makes the read fail, which is how
+    // a file locked by AV or an indexer behaves.
+    const blocked = join(stateDir, "state", "blocked.json");
+    mkdirSync(blocked);
+    const stale = writePresence(stateDir, "stale.json", { updated: now - FRESH_MS * 2 });
+
+    const removed = reapStalePresenceFiles(stateDir, FRESH_MS, now);
+
+    expect(removed).toEqual([stale]);
+    expect(existsSync(blocked)).toBe(true);
+  });
+
   it("leaves unrelated files and a missing directory alone", () => {
     const stateDir = stateDirFor("other");
     const note = join(stateDir, "state", "note.txt");

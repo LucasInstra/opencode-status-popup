@@ -26,8 +26,12 @@ Notable changes to this project, newest first. The format follows
 - The host is no longer given up on during a cold start: a shell that is still
   alive after the first 2.5 s keeps its probe window (up to 10 s) instead of
   being abandoned for the next interpreter, and a shell that cannot even start
-  fails over immediately. The "no usable PowerShell found" warning now fires
-  only when no shell reached a heartbeat, and points at `host.log`.
+  fails over immediately. The per-shell line says which failure it was (could
+  not start, exited without a heartbeat, no heartbeat in time), and the
+  warning fires only when no shell reached one.
+- The tray host is not restarted for settings it does not render: `typeMs` and
+  `mark` only have to match in `window` mode, so changing them no longer
+  replaces a running tray icon.
 
 ### Fixed
 
@@ -42,8 +46,8 @@ Notable changes to this project, newest first. The format follows
   still starting.
 - Docs: the `session.command` example uses `name` (the field the API expects),
   `typeMs` is scoped to the pill, `OPENCODE_STATUS_POPUP_DIR` is documented,
-  and a live-vs-restart table says what a change to each option does to a
-  running host.
+  and a live-vs-restart table states the reload precondition and what a change
+  to each option does to a running host.
 
 ## 0.2.3 — 2026-09-16
 

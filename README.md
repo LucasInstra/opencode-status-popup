@@ -125,14 +125,16 @@ All options are optional. Defaults shown.
 | `mark` | `boolean` | `false` | Draw the small o mark before the word in the pill. Off by default: the window is just the word, the mark belongs to the tray icon. |
 | `shellPath` | `string` | `null` | Force a specific PowerShell executable. |
 
-What a change does to a running popup:
+Options are read when the plugin sets up, and OpenCode reloads plugins automatically when a watched config file changes (a local dependency outside the watched directories may still need an OpenCode restart). After that reload:
 
 | Option | Effect |
 |---|---|
-| `word`, `typeMs`, `freshSeconds`, `idleSeconds`, `mark` | **restart the host** within a few seconds, because it renders them at launch |
+| `word`, `freshSeconds`, `idleSeconds` | **restart the host** within a few seconds, because it renders them at launch |
+| `typeMs`, `mark` | restart a `window` host, which renders them; the tray ignores both |
 | `position` | **does not restart it**: the corner is resolved when the pill is placed (first show, or `Reset position`), so a change applies there and never moves a pill you already dragged |
 | `mode` | replaced immediately by the `/popup-*` commands; the option is only the fallback after `reset` |
-| `enabled`, `shellPath`, `errorHoldSeconds` | read when the plugin sets up, so they need a reload or a restart |
+| `shellPath` | applies the next time a host starts; a live host keeps the interpreter it was launched with |
+| `enabled`, `errorHoldSeconds` | need no host restart: `enabled` loads or unloads the plugin, and `errorHoldSeconds` is read by the plugin |
 
 ```jsonc
 {

@@ -62,6 +62,32 @@ describe("host launch", () => {
     expect(hostInfoMatches(movedCorner, settings)).toBe(true);
     expect(hostInfoMatches({ ...info, word: "hi" }, settings)).toBe(false);
   });
+
+  it("does not compare what the current renderer does not use", () => {
+    const tray: HostSettings = { ...settings, mode: "tray" };
+    const trayInfo = {
+      pid: 4242,
+      updated: Date.now(),
+      mode: "tray",
+      word: "opencode",
+      typeMs: 140,
+      fresh: 20,
+      idle: 25,
+      mark: false,
+      position: "top-left",
+    };
+
+    // The tray draws on a fixed tick and its icon is the letter: typeMs and
+    // mark cannot change it, so they do not restart it.
+    expect(hostInfoMatches({ ...trayInfo, typeMs: 900, mark: true }, tray)).toBe(true);
+    // It still restarts for what it does render.
+    expect(hostInfoMatches({ ...trayInfo, word: "hi" }, tray)).toBe(false);
+    expect(hostInfoMatches({ ...trayInfo, fresh: 60 }, tray)).toBe(false);
+
+    // The pill renders both, so a divergence there restarts it.
+    expect(hostInfoMatches({ ...trayInfo, mode: "window", typeMs: 900 }, settings)).toBe(false);
+    expect(hostInfoMatches({ ...trayInfo, mode: "window", mark: true }, settings)).toBe(false);
+  });
 });
 
 describe("host supervisor", () => {

@@ -100,20 +100,27 @@ export function buildHostArgs(launch: HostLaunch): string[] {
 }
 
 /**
- * True when a live host already renders exactly these settings. `position` is
- * deliberately not compared: it is a placement-time value, so a changed corner
- * applies at the next placement (first show, or Reset position) and restarting
- * here would churn the host without moving anything. Do not add it to the list
- * below: the live behaviour of the option depends on this omission.
+ * True when a live host already renders exactly these settings.
+ *
+ * `position` is deliberately not compared: it is a placement-time value, so a
+ * changed corner applies at the next placement (first show, or Reset position)
+ * and restarting here would churn the host without moving anything. Do not add
+ * it to the list below: the live behaviour of the option depends on this
+ * omission.
+ *
+ * Settings the current renderer does not use are not compared either: the tray
+ * draws on a fixed 250 ms tick and its icon is the letter, not the mark, so
+ * `typeMs` and `mark` cannot change what it shows.
  */
 export function hostInfoMatches(info: HostInfo, settings: HostSettings): boolean {
+  const windowRenders = settings.mode !== "tray";
   return (
     info.mode === settings.mode &&
     info.word === settings.word &&
-    info.typeMs === settings.typeMs &&
+    (!windowRenders || info.typeMs === settings.typeMs) &&
     info.fresh === settings.fresh &&
     info.idle === settings.idle &&
-    info.mark === settings.mark
+    (!windowRenders || info.mark === settings.mark)
   );
 }
 
@@ -196,7 +203,9 @@ export class HostSupervisor {
       if (this.closed) return;
       if (await this.tryShell(shell)) return;
     }
-    this.warn("could not start the popup host: no usable PowerShell found (see host.log)");
+    this.warn(
+      "could not start the popup host: no usable PowerShell found (see the attempts above and host.log)",
+    );
   }
 
   /**
@@ -210,6 +219,11 @@ export class HostSupervisor {
    * The first window is short, so a shell that cannot run falls through to the
    * next one; a shell that is still alive when it elapses keeps a longer one,
    * because a cold machine can take several seconds to reach the heartbeat.
+   * A launcher that exits (the Store build of pwsh) still only gets the first
+   * window: its apphost may need longer, but waiting out every exited shell
+   * would delay the failover of a script that died. The next interpreter is
+   * tried in that case, and a late heartbeat from the first host still
+   * satisfies the next shell's probe.
    */
   private async tryShell(shell: string): Promise<boolean> {
     const before = this.readInfo()?.updated ?? 0;
@@ -246,12 +260,20 @@ export class HostSupervisor {
           this.kill(child.pid);
           return false;
         }
+        if (failed) {
+          this.log(`${shell} could not be started`);
+          return false;
+        }
         const elapsed = Date.now() - started;
-        if (failed) break;
-        if (elapsed >= PROBE_MIN_MS && (exited || elapsed >= PROBE_MAX_MS)) break;
+        if (elapsed >= PROBE_MIN_MS && (exited || elapsed >= PROBE_MAX_MS)) {
+          this.log(
+            exited
+              ? `${shell} exited without a host heartbeat`
+              : `${shell} did not report a host heartbeat within ${PROBE_MAX_MS / 1000}s`,
+          );
+          return false;
+        }
       }
-      this.log(`${shell} did not start the popup host`);
-      return false;
     } finally {
       if (this.probing === child) this.probing = undefined;
     }
