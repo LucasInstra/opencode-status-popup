@@ -11,6 +11,7 @@ export interface HostSettings {
   fresh: number;
   idle: number;
   mark: boolean;
+  trayIdleStatic: boolean;
   position: PopupPosition;
 }
 
@@ -39,6 +40,7 @@ export interface HostInfo {
   fresh?: number;
   idle?: number;
   mark?: boolean;
+  trayIdleStatic?: boolean;
   updated?: number;
 }
 
@@ -87,6 +89,8 @@ export function buildHostArgs(launch: HostLaunch): string[] {
     hostMutexName(launch.stateDir),
     "-Mark",
     settings.mark ? "1" : "0",
+    "-TrayIdleStatic",
+    settings.trayIdleStatic ? "1" : "0",
     `-Word:${settings.word}`,
     "-TypeMs",
     String(settings.typeMs),
@@ -110,7 +114,8 @@ export function buildHostArgs(launch: HostLaunch): string[] {
  *
  * Settings the current renderer does not use are not compared either: the tray
  * draws on a fixed 250 ms tick and its icon is the letter, not the mark, so
- * `typeMs` and `mark` cannot change what it shows.
+ * `typeMs` and `mark` cannot change what it shows, and the pill has no use for
+ * `trayIdleStatic`, which only pins the tray idle icon.
  */
 export function hostInfoMatches(info: HostInfo, settings: HostSettings): boolean {
   const windowRenders = settings.mode !== "tray";
@@ -120,7 +125,12 @@ export function hostInfoMatches(info: HostInfo, settings: HostSettings): boolean
     (!windowRenders || info.typeMs === settings.typeMs) &&
     info.fresh === settings.fresh &&
     info.idle === settings.idle &&
-    (!windowRenders || info.mark === settings.mark)
+    (!windowRenders || info.mark === settings.mark) &&
+    // A host that predates the option has no field in its heartbeat: the
+    // missing value reads as the default (`false`), so an upgrade with the
+    // default does not restart a blinking tray; asking for `true` restarts it
+    // once, so the option can apply.
+    (windowRenders || (info.trayIdleStatic ?? false) === settings.trayIdleStatic)
   );
 }
 

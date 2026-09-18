@@ -36,7 +36,7 @@ Bug hunting belongs to the reviewer and auditor agents; do not restate defects a
 Look for improvements in these areas, in priority order:
 
 1. **User-facing behavior**: the five states (`idle`, `busy`, `retry`, `error`, `permission`) and their priority on the pill and in the tray icon; mode switching (`window`/`tray`/`toggle`/`reset`); `position` handling; freshness and idle transitions; tooltips and detail text; multi-monitor, DPI scaling, dark/light backgrounds, accessibility.
-2. **Configuration surface**: options that are missing or awkward (`word`, `typeMs`, `freshSeconds`, `idleSeconds`, `errorHoldSeconds`, `mark`, `shellPath`), defaults, bounds and validation, what requires a restart versus applies live, discoverability in the README options table.
+2. **Configuration surface**: options that are missing or awkward (`word`, `typeMs`, `freshSeconds`, `idleSeconds`, `errorHoldSeconds`, `mark`, `trayIdleStatic`, `shellPath`), defaults, bounds and validation, what requires a restart versus applies live, discoverability in the README options table.
 3. **Robustness and host boundary**: state-file lifecycle under `%TEMP%\opencode-status-popup\`, orphaned hosts and cleanup on crash, concurrency between multiple OpenCode instances, diagnostics behind `OPENCODE_STATUS_POPUP_DEBUG=1`, log rotation or size.
 4. **Testing**: coverage gaps per module, waits that could go flaky, missing platform coverage, what the smoke test does not assert, whether the four project subagents cover every change class.
 5. **Docs and developer experience**: README structure and scans, the two GIFs and three PNGs under `docs/`, the preview harness flags, the subagents themselves (undocumented in `README.md` today), contribution notes.

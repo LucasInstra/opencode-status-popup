@@ -11,6 +11,7 @@ const settings: HostSettings = {
   fresh: 20,
   idle: 25,
   mark: false,
+  trayIdleStatic: false,
   position: "top-left",
 };
 
@@ -26,7 +27,15 @@ describe("host launch", () => {
     expect(valueOf("-IdleSeconds")).toBe("25");
     expect(valueOf("-Position")).toBe("top-left");
     expect(valueOf("-Mark")).toBe("0");
+    expect(valueOf("-TrayIdleStatic")).toBe("0");
     expect(args).toContain("-Word:opencode");
+
+    const pinned = buildHostArgs({
+      scriptPath: "C:\\host\\popup.ps1",
+      stateDir: "C:\\state",
+      settings: { ...settings, trayIdleStatic: true },
+    });
+    expect(pinned[pinned.indexOf("-TrayIdleStatic") + 1]).toBe("1");
   });
 
   it("attaches free-form values to their flags, so a leading dash cannot be a parameter", () => {
@@ -52,6 +61,7 @@ describe("host launch", () => {
       fresh: 20,
       idle: 25,
       mark: false,
+      trayIdleStatic: false,
       position: "top-left",
     };
 
@@ -61,6 +71,8 @@ describe("host launch", () => {
     const movedCorner = { ...info, position: "bottom-right" };
     expect(hostInfoMatches(movedCorner, settings)).toBe(true);
     expect(hostInfoMatches({ ...info, word: "hi" }, settings)).toBe(false);
+    // The pill ignores the tray-only option.
+    expect(hostInfoMatches({ ...info, trayIdleStatic: true }, settings)).toBe(true);
   });
 
   it("does not compare what the current renderer does not use", () => {
@@ -74,6 +86,7 @@ describe("host launch", () => {
       fresh: 20,
       idle: 25,
       mark: false,
+      trayIdleStatic: false,
       position: "top-left",
     };
 
@@ -83,10 +96,21 @@ describe("host launch", () => {
     // It still restarts for what it does render.
     expect(hostInfoMatches({ ...trayInfo, word: "hi" }, tray)).toBe(false);
     expect(hostInfoMatches({ ...trayInfo, fresh: 60 }, tray)).toBe(false);
+    // The pinned idle is tray-only and a rendered setting there: diverging
+    // restarts, and a heartbeat from a host older than the option reads as the
+    // default (blinking) instead of forcing a restart on upgrade.
+    expect(hostInfoMatches({ ...trayInfo, trayIdleStatic: true }, tray)).toBe(false);
+    expect(hostInfoMatches({ ...trayInfo, trayIdleStatic: undefined }, tray)).toBe(true);
+    // Turning the option on does restart that older host, so it can apply.
+    expect(
+      hostInfoMatches({ ...trayInfo, trayIdleStatic: undefined }, { ...tray, trayIdleStatic: true }),
+    ).toBe(false);
 
     // The pill renders both, so a divergence there restarts it.
     expect(hostInfoMatches({ ...trayInfo, mode: "window", typeMs: 900 }, settings)).toBe(false);
     expect(hostInfoMatches({ ...trayInfo, mode: "window", mark: true }, settings)).toBe(false);
+    // The pill does not render the pinned idle at all.
+    expect(hostInfoMatches({ ...trayInfo, mode: "window", trayIdleStatic: true }, settings)).toBe(true);
   });
 });
 
@@ -162,7 +186,7 @@ describe("host supervisor", () => {
 const STUB_HOST = [
   "param(",
   '  [string]$Mode, [string]$StateDir, [string]$MutexName,',
-  '  [int]$Mark, [string]$Word, [int]$TypeMs,',
+  '  [int]$Mark, [int]$TrayIdleStatic, [string]$Word, [int]$TypeMs,',
   '  [string]$Position, [int]$FreshSeconds, [int]$IdleSeconds,',
   "  [switch]$KeepAlive",
   ")",

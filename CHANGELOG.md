@@ -4,6 +4,16 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `trayIdleStatic` (default `false`): with it on, the tray icon holds the full
+  blue letter steady while idle instead of the slow blink. The working, retry,
+  error and permission states keep their animations, and the pill ignores the
+  option. `npm run preview:tray -- --state idle --idle-static` previews it
+  without OpenCode.
+
 ## 0.3.0 — 2026-09-17
 
 ### Added

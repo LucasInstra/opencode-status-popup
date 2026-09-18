@@ -13,6 +13,7 @@ param(
   [string]$StateDir = "",
   [string]$MutexName = "Local\opencode-status-popup-host",
   [int]$Mark = 0,
+  [int]$TrayIdleStatic = 0,
   [string]$Word = "opencode",
   [int]$TypeMs = 140,
   [ValidateSet("bottom-right", "bottom-left", "top-right", "top-left")]
@@ -60,13 +61,14 @@ if (-not $createdNew) {
 }
 
 $settings = @{
-  mode    = $Mode
-  word    = $Word
-  typeMs  = $TypeMs
-  fresh   = $FreshSeconds
-  idle    = $IdleSeconds
-  mark    = ([int]$Mark -ne 0)
-  state   = $script:StateDirPath
+  mode           = $Mode
+  word           = $Word
+  typeMs         = $TypeMs
+  fresh          = $FreshSeconds
+  idle           = $IdleSeconds
+  mark           = ([int]$Mark -ne 0)
+  trayIdleStatic = ([int]$TrayIdleStatic -ne 0)
+  state          = $script:StateDirPath
 }
 
 try {

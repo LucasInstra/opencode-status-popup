@@ -116,6 +116,13 @@ function Update-TrayProgressIcon {
     return
   }
 
+  # Idle can be pinned: one full letter at the bright alpha, never blinking.
+  if ($phase -eq "idle" -and $script:TrayPinnedIdle) {
+    $script:TrayProgress = 0
+    $script:TrayTrayIcon.Update((Get-TrayFrame -Phase "idle" -Visible $script:TrayRingCells.Count -Alpha 0.95).Icon)
+    return
+  }
+
   # Waiting phases blink, faster the more the user is needed.
   $script:TrayProgress = 0
   $cadence = 4
@@ -200,13 +207,19 @@ function Show-TrayIcon {
   $script:TrayFresh = [int]$Settings.fresh
   $script:TrayIdleSeconds = [int]$Settings.idle
   $script:TrayKeepAlive = [bool]$KeepAlive
+  # Not $script:TrayIdleStatic: that name is the host parameter, and an
+  # assignment to a typed parameter from a script scope is coerced back to its
+  # type (a bool becomes 1), so the heartbeat would never match the plugin's
+  # boolean. Keep the runtime copy under its own name.
+  $script:TrayPinnedIdle = [bool]$Settings.trayIdleStatic
   $script:TrayHostFields = @{
-    mode   = "tray"
-    word   = $script:TrayWord
-    typeMs = [int]$Settings.typeMs
-    fresh  = $script:TrayFresh
-    idle   = $script:TrayIdleSeconds
-    mark   = [bool]$Settings.mark
+    mode           = "tray"
+    word           = $script:TrayWord
+    typeMs         = [int]$Settings.typeMs
+    fresh          = $script:TrayFresh
+    idle           = $script:TrayIdleSeconds
+    mark           = [bool]$Settings.mark
+    trayIdleStatic = $script:TrayPinnedIdle
   }
 
   $size = [System.Windows.Forms.SystemInformation]::SmallIconSize.Width

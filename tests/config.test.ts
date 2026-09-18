@@ -14,6 +14,7 @@ describe("parseConfig", () => {
       idleSeconds: 25,
       errorHoldSeconds: 90,
       mark: false,
+      trayIdleStatic: false,
       shellPath: null,
     });
   });
@@ -31,6 +32,13 @@ describe("parseConfig", () => {
     expect(parseConfig({ mark: true }).mark).toBe(true);
     expect(parseConfig({ mark: false }).mark).toBe(false);
     expect(parseConfig({ mark: "no" }).mark).toBe(false);
+  });
+
+  it("keeps the tray idle blinking unless it is asked to be static", () => {
+    expect(parseConfig(undefined).trayIdleStatic).toBe(false);
+    expect(parseConfig({ trayIdleStatic: true }).trayIdleStatic).toBe(true);
+    expect(parseConfig({ trayIdleStatic: false }).trayIdleStatic).toBe(false);
+    expect(parseConfig({ trayIdleStatic: "yes" }).trayIdleStatic).toBe(false);
   });
 
   it("accepts the tray mode", () => {

@@ -11,6 +11,7 @@ export interface PopupConfig {
   readonly idleSeconds: number;
   readonly errorHoldSeconds: number;
   readonly mark: boolean;
+  readonly trayIdleStatic: boolean;
   readonly shellPath: string | null;
 }
 
@@ -56,6 +57,7 @@ export function parseConfig(options: unknown): PopupConfig {
       MAX_ERROR_HOLD_SECONDS,
     ),
     mark: input.mark === true,
+    trayIdleStatic: input.trayIdleStatic === true,
     shellPath: parseShellPath(input.shellPath),
   };
 }

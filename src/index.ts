@@ -51,6 +51,7 @@ export default Plugin.define({
       fresh: config.freshSeconds,
       idle: config.idleSeconds,
       mark: config.mark,
+      trayIdleStatic: config.trayIdleStatic,
       position: config.position,
     };
     trace(`setup directory=${directory} project=${project} mode=${settings.mode} pid=${process.pid}`);

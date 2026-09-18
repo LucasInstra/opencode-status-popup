@@ -123,6 +123,7 @@ All options are optional. Defaults shown.
 | `idleSeconds` | `number` | `25` | How long the host waits without any live instance before exiting (5–3600). |
 | `errorHoldSeconds` | `number` | `90` | How long a failed execution keeps the pill red (0–3600). Use `0` to keep it until the session works again. |
 | `mark` | `boolean` | `false` | Draw the small o mark before the word in the pill. Off by default: the window is just the word, the mark belongs to the tray icon. |
+| `trayIdleStatic` | `boolean` | `false` | Keep the tray icon still while idle: the full blue o, no blink. The working, retry, error and permission states keep their animations. |
 | `shellPath` | `string` | `null` | Force a specific PowerShell executable. |
 
 Options are read when the plugin sets up, and OpenCode reloads plugins automatically when a watched config file changes (a local dependency outside the watched directories may still need an OpenCode restart). After that reload:
@@ -131,6 +132,7 @@ Options are read when the plugin sets up, and OpenCode reloads plugins automatic
 |---|---|
 | `word`, `freshSeconds`, `idleSeconds` | **restart the host** within a few seconds, because it renders them at launch |
 | `typeMs`, `mark` | restart a `window` host, which renders them; the tray ignores both |
+| `trayIdleStatic` | restart a `tray` host, which renders it; the `window` host ignores it |
 | `position` | **does not restart it**: the corner is resolved when the pill is placed (first show, or `Reset position`), so a change applies there and never moves a pill you already dragged |
 | `mode` | replaced immediately by the `/popup-*` commands; the option is only the fallback after `reset` |
 | `shellPath` | applies the next time a host starts; a live host keeps the interpreter it was launched with |
@@ -242,6 +244,7 @@ npm run preview:tray -- --keep
 - `--watch` — cycle every 6 seconds.
 - `--detail '<text>'` — what the balloon reports.
 - `--word <text>` / `--type <ms>` — the word and the typing speed.
+- `--idle-static` — pin the tray idle icon: the full blue o, no blink.
 - `--seconds N` — stop by itself after N seconds.
 - `--keep` — leave the host running when the preview exits.
 

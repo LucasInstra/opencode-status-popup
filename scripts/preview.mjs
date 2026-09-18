@@ -82,6 +82,7 @@ function parseArgs(args) {
     detail: undefined,
     word: "opencode",
     type: 140,
+    idleStatic: false,
     watch: false,
     keep: false,
     stop: false,
@@ -110,6 +111,9 @@ function parseArgs(args) {
         break;
       case "--type":
         parsed.type = Number(takeValue()) || parsed.type;
+        break;
+      case "--idle-static":
+        parsed.idleStatic = true;
         break;
       case "--seconds":
         parsed.seconds = Number(takeValue()) || 0;
@@ -182,7 +186,8 @@ function hostIsLive() {
 async function ensureHost() {
   const info = readHostInfo();
   if (hostIsLive()) {
-    if (info?.mode === options.mode && info?.word === options.word) return false;
+    const idleMatches = options.mode !== "tray" || (info?.trayIdleStatic ?? false) === options.idleStatic;
+    if (info?.mode === options.mode && info?.word === options.word && idleMatches) return false;
     // the plugin restarts a host whose settings changed; do the same here
     try {
       process.kill(info.pid);
@@ -214,6 +219,8 @@ async function spawnHost() {
     `-Word:${options.word || "opencode"}`,
     "-TypeMs",
     String(options.type),
+    "-TrayIdleStatic",
+    options.idleStatic ? "1" : "0",
   ];
   if (options.keep) args.push("-KeepAlive");
   for (const shell of ["pwsh.exe", "powershell.exe"]) {

@@ -51,7 +51,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   const tools: string[] = [];
   const disposals: string[] = [];
   const context = {
-    options: { mode, idleSeconds: 30 },
+    options: { mode, idleSeconds: 30, trayIdleStatic: true },
     location: { directory },
     event: { subscribe: (options?: { signal?: AbortSignal }) => queue.stream(options?.signal) },
     storage: {
@@ -118,6 +118,9 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     hostPid = Number(host.pid);
     expect(hostPid).toBeGreaterThan(0);
     expect(isAlive(hostPid)).toBe(true);
+    // The tray echoes the pinned idle in its heartbeat; the pill does not
+    // render it and leaves the field out.
+    if (mode === "tray") expect(host.trayIdleStatic).toBe(true);
 
     queue.push({ type: "permission.asked", data: { id: "per_smoke", sessionID: "ses_smoke", action: "bash", resources: ["npm test"] } });
     const waiting = await waitFor(() => {

@@ -50,6 +50,7 @@ Safe checks (no desktop involved):
 Live checks (they open the real pill or tray icon on the user's desktop):
 - `npm run preview -- --state permission --detail "bash git status" --seconds 8`
 - `npm run preview:tray -- --state busy --seconds 8`
+- `npm run preview:tray -- --state idle --idle-static --seconds 8` pins the idle icon (full blue o, no blink).
 - `npm run preview:cycle` and `npm run preview:tray:cycle` walk through every state, 6s each.
 - `npm run preview:stop` stops the host and removes the fake presence file.
 - `pwsh -NoProfile -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and captures everything it prints to `%TEMP%\opencode-status-popup\test-window.out`, the quickest way to read a script error.
