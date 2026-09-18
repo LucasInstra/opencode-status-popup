@@ -13,6 +13,9 @@ Notable changes to this project, newest first. The format follows
   error and permission states keep their animations, and the pill ignores the
   option. `npm run preview:tray -- --state idle --idle-static` previews it
   without OpenCode.
+- `/popup-static` (also `Popup: tray idle static` in the palette) toggles the
+  tray idle at runtime. The choice is shared by every instance and remembered
+  like the mode; `reset` goes back to the configured value.
 
 ## 0.3.0 — 2026-09-17
 

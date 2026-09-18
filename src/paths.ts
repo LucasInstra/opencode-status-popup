@@ -21,12 +21,25 @@ export function modeRequestPathOf(stateDir: string): string {
   return join(stateDir, "mode.request");
 }
 
+/** Written by the TUI palette command and consumed by every server instance. */
+export function idleStaticRequestPathOf(stateDir: string): string {
+  return join(stateDir, "idle-static.request");
+}
+
 /**
  * The chosen renderer, shared by every plugin instance: the host is a single
  * process, so the mode cannot live in per instance state or instances fight.
  */
 export function sharedModePathOf(stateDir: string): string {
   return join(stateDir, "mode.json");
+}
+
+/**
+ * The runtime tray idle choice, shared by every instance like the mode.
+ * `idle-static.request` is the pending toggle from the palette.
+ */
+export function sharedIdleStaticPathOf(stateDir: string): string {
+  return join(stateDir, "idle-static.json");
 }
 
 /**

@@ -32,14 +32,14 @@ export function writeSharedMode(path: string, mode: PopupMode | undefined): void
 }
 
 /**
- * Reads and consumes a mode request left by the TUI palette or the host menu.
+ * Reads and consumes a request file left by the TUI palette or the host menu.
  *
  * The file is replaced atomically by its writers, so a payload that does not
  * parse can only be a leftover: it is dropped, or the watcher would wedge on
  * it. A read that fails is left alone instead — the file may be briefly locked
  * (AV, indexer) and the caller polls again 100 ms later.
  */
-export function consumeModeRequest(path: string): { mode?: unknown } | undefined {
+export function consumeRequest(path: string): Record<string, unknown> | undefined {
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");
@@ -51,18 +51,23 @@ export function consumeModeRequest(path: string): { mode?: unknown } | undefined
   try {
     parsed = JSON.parse(raw);
   } catch {
-    dropModeRequest(path);
+    dropRequest(path);
     return undefined;
   }
 
   // Only hand the request over once it is gone: a file that resists removal
   // (an indexer holding it) would otherwise be applied again every tick, and
   // `toggle` is not idempotent.
-  if (!dropModeRequest(path)) return undefined;
-  return typeof parsed === "object" && parsed !== null ? (parsed as { mode?: unknown }) : {};
+  if (!dropRequest(path)) return undefined;
+  return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
-function dropModeRequest(path: string): boolean {
+/** The mode request file, typed for the payload its writer sends. */
+export function consumeModeRequest(path: string): { mode?: unknown } | undefined {
+  return consumeRequest(path);
+}
+
+function dropRequest(path: string): boolean {
   try {
     rmSync(path, { force: true });
     return true;

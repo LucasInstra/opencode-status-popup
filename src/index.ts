@@ -4,17 +4,27 @@ import { createDebugLog } from "./debug";
 import { HostSupervisor, type HostSettings } from "./host";
 import {
   hostScriptPath,
+  idleStaticRequestPathOf,
   instanceSlug,
   modeRequestPathOf,
   presenceFileOf,
   projectNameOf,
+  sharedIdleStaticPathOf,
   sharedModePathOf,
   sharedPositionPathOf,
   statusStateDir,
 } from "./paths";
-import { MODE_PREFERENCE_KEY, resolveMode, toggleMode } from "./preferences";
+import {
+  IDLE_STATIC_PREFERENCE_KEY,
+  MODE_PREFERENCE_KEY,
+  resolveIdleStatic,
+  resolveMode,
+  toggleIdleStatic,
+  toggleMode,
+} from "./preferences";
 import { PresenceWriter, reapStalePresenceFiles } from "./presence";
-import { readSharedMode, consumeModeRequest, writeSharedMode } from "./sharedMode";
+import { consumeModeRequest, consumeRequest, readSharedMode, writeSharedMode } from "./sharedMode";
+import { readSharedIdleStatic, writeSharedIdleStatic } from "./sharedIdleStatic";
 import { writeSharedPosition } from "./sharedPosition";
 import { SessionActivity, type RawEvent } from "./status";
 
@@ -37,10 +47,14 @@ export default Plugin.define({
     const trace = createDebugLog(stateDir);
 
     const sharedModePath = sharedModePathOf(stateDir);
+    const sharedIdleStaticPath = sharedIdleStaticPathOf(stateDir);
     // The renderer is shared state, not per instance: every instance supervises
     // the same host, so they read the choice from the shared file and follow it
     // (see the supervisor tick below) instead of killing each other's host.
     const stored = await ctx.storage.get(MODE_PREFERENCE_KEY).catch(() => undefined);
+    const storedIdleStatic = await ctx.storage
+      .get(IDLE_STATIC_PREFERENCE_KEY)
+      .catch(() => undefined);
     // Published for the host, which reads it when it places the pill: a changed
     // corner applies on the next Reset position without a host restart.
     writeSharedPosition(sharedPositionPathOf(stateDir), config.position);
@@ -51,7 +65,9 @@ export default Plugin.define({
       fresh: config.freshSeconds,
       idle: config.idleSeconds,
       mark: config.mark,
-      trayIdleStatic: config.trayIdleStatic,
+      trayIdleStatic:
+        readSharedIdleStatic(sharedIdleStaticPath) ??
+        resolveIdleStatic(storedIdleStatic, config.trayIdleStatic),
       position: config.position,
     };
     trace(`setup directory=${directory} project=${project} mode=${settings.mode} pid=${process.pid}`);
@@ -98,6 +114,14 @@ export default Plugin.define({
         presence.setMode(desired);
         presence.sync(snapshot);
       }
+      // The tray idle follows the same shared choice, or two instances would
+      // fight over the host they both supervise.
+      const sharedStatic = readSharedIdleStatic(sharedIdleStaticPath);
+      const desiredStatic = sharedStatic ?? config.trayIdleStatic;
+      if (desiredStatic !== settings.trayIdleStatic) {
+        trace(`following shared tray idle static=${desiredStatic} (was ${settings.trayIdleStatic})`);
+        settings.trayIdleStatic = desiredStatic;
+      }
       void host.ensure();
     }, SUPERVISE_MS);
     heartbeat.unref?.();
@@ -105,7 +129,9 @@ export default Plugin.define({
 
     // /popup-* commands: the renderer is switchable at runtime, the choice is
     // remembered, and the host restarts because its settings no longer match.
-    const switchMode = async (mode: PopupMode, persist: boolean): Promise<string> => {
+    // Applying and restarting stay separate: a reset changes both runtime
+    // choices and must restart once, after both, not once per choice.
+    const applyMode = async (mode: PopupMode, persist: boolean): Promise<string> => {
       if (settings.mode !== mode) {
         settings.mode = mode;
         presence.setMode(mode);
@@ -117,8 +143,30 @@ export default Plugin.define({
         : ctx.storage.remove(MODE_PREFERENCE_KEY)
       ).catch(() => undefined);
       trace(`switch mode=${mode} persist=${persist}`);
-      void host.ensure();
       return mode;
+    };
+
+    const switchMode = async (mode: PopupMode, persist: boolean): Promise<string> => {
+      const applied = await applyMode(mode, persist);
+      void host.ensure();
+      return applied;
+    };
+
+    const applyIdleStatic = async (value: boolean, persist: boolean): Promise<boolean> => {
+      settings.trayIdleStatic = value;
+      writeSharedIdleStatic(sharedIdleStaticPath, persist ? value : undefined);
+      await (persist
+        ? ctx.storage.set(IDLE_STATIC_PREFERENCE_KEY, value)
+        : ctx.storage.remove(IDLE_STATIC_PREFERENCE_KEY)
+      ).catch(() => undefined);
+      trace(`switch tray idle static=${value} persist=${persist}`);
+      return value;
+    };
+
+    const switchIdleStatic = async (value: boolean, persist: boolean): Promise<boolean> => {
+      const applied = await applyIdleStatic(value, persist);
+      void host.ensure();
+      return applied;
     };
 
     const applyRequest = async (request: unknown): Promise<string | undefined> => {
@@ -129,11 +177,25 @@ export default Plugin.define({
           return switchMode("tray", true);
         case "toggle":
           return switchMode(toggleMode(settings.mode === "tray" ? "tray" : "window"), true);
-        case "reset":
-          return switchMode(config.mode, false);
+        case "reset": {
+          // A reset forgets every runtime choice, the tray idle included. Both
+          // are applied before the single ensure: restarting in between would
+          // bring the old renderer up and only converge on the next tick.
+          await applyIdleStatic(config.trayIdleStatic, false);
+          const mode = await applyMode(config.mode, false);
+          void host.ensure();
+          return mode;
+        }
         default:
           return undefined;
       }
+    };
+
+    const applyIdleStaticRequest = async (request: unknown): Promise<boolean | undefined> => {
+      if (request === "toggle") {
+        return switchIdleStatic(toggleIdleStatic(settings.trayIdleStatic), true);
+      }
+      return undefined;
     };
 
     const commands = await ctx.command.transform((editor) => {
@@ -154,8 +216,14 @@ export default Plugin.define({
       });
       editor.add({
         name: "popup-reset",
-        description: "Status popup: forget the chosen mode and use the one from the config",
+        description: "Status popup: forget the runtime choices and use the ones from the config",
         execute: async () => void (await applyRequest("reset")),
+      });
+      editor.add({
+        name: "popup-static",
+        description:
+          "Status popup: toggle the tray idle icon between the static letter and the blinking one",
+        execute: async () => void (await applyIdleStaticRequest("toggle")),
       });
     });
 
@@ -169,7 +237,7 @@ export default Plugin.define({
       editor.add({
         name: "mode",
         description:
-          "Switch the opencode status popup between the floating pill window and the tray icon. Use 'toggle' when the user does not care which one, 'reset' to go back to the configured mode.",
+          "Switch the opencode status popup between the floating pill window and the tray icon. Use 'toggle' when the user does not care which one, 'reset' to go back to the configured mode and tray idle.",
         input: {
           type: "object",
           properties: {
@@ -193,15 +261,25 @@ export default Plugin.define({
     });
 
     // Menu items in the host ("Show in tray" / "Show as window") and the TUI
-    // commands leave a request file: the renderer is decided here, so they are
-    // applied on the next 100 ms tick and the host is replaced.
+    // palette leave request files: the choices are applied here, on the next
+    // 100 ms tick, and the host is replaced when its settings no longer match.
     const requestFile = modeRequestPathOf(stateDir);
+    const idleStaticRequestFile = idleStaticRequestPathOf(stateDir);
     const watchRequest = setInterval(() => {
       const consumed = consumeModeRequest(requestFile);
-      if (!consumed) return; // nothing waiting
-      void applyRequest(consumed.mode).then((applied) => {
-        trace(`mode request ${String(consumed.mode)} applied=${String(applied)}`);
-      });
+      if (consumed) {
+        void applyRequest(consumed.mode).then((applied) => {
+          trace(`mode request ${String(consumed.mode)} applied=${String(applied)}`);
+        });
+      }
+      const consumedStatic = consumeRequest(idleStaticRequestFile);
+      if (consumedStatic) {
+        void applyIdleStaticRequest(consumedStatic.idleStatic).then((applied) => {
+          trace(
+            `idle static request ${String(consumedStatic.idleStatic)} applied=${String(applied)}`,
+          );
+        });
+      }
     }, 100);
     watchRequest.unref?.();
 

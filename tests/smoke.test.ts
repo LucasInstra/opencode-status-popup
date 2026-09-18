@@ -48,6 +48,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   const queue = new EventQueue();
   const store = new Map<string, unknown>();
   const commands: string[] = [];
+  const executables = new Map<string, (input: unknown) => unknown>();
   const tools: string[] = [];
   const disposals: string[] = [];
   const context = {
@@ -60,8 +61,17 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
       remove: async (key: string) => void store.delete(key),
     },
     command: {
-      transform: async (callback: (editor: { add: (definition: { name: string }) => void }) => void) => {
-        callback({ add: (definition) => void commands.push(definition.name) });
+      transform: async (
+        callback: (editor: {
+          add: (definition: { name: string; execute?: (input: unknown) => unknown }) => void;
+        }) => void,
+      ) => {
+        callback({
+          add: (definition) => {
+            commands.push(definition.name);
+            if (definition.execute) executables.set(definition.name, definition.execute);
+          },
+        });
         return { dispose: async () => void disposals.push("command") };
       },
     },
@@ -92,6 +102,7 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     expect(commands).toContain("popup-tray");
     expect([...commands].sort()).toEqual([
       "popup-reset",
+      "popup-static",
       "popup-toggle",
       "popup-tray",
       "popup-window",
@@ -120,7 +131,32 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     expect(isAlive(hostPid)).toBe(true);
     // The tray echoes the pinned idle in its heartbeat; the pill does not
     // render it and leaves the field out.
-    if (mode === "tray") expect(host.trayIdleStatic).toBe(true);
+    if (mode === "tray") {
+      expect(host.trayIdleStatic).toBe(true);
+      // /popup-static flips the shared choice and the supervisor replaces the
+      // host that no longer matches, which is the whole point of the command.
+      const toggle = executables.get("popup-static");
+      expect(toggle).toBeTypeOf("function");
+      await toggle?.({});
+      const blinking = await waitFor(() => {
+        const info = readJson(hostInfoPathOf(stateDir));
+        return info?.mode === "tray" && info.trayIdleStatic === false ? info : undefined;
+      });
+      expect(blinking.trayIdleStatic).toBe(false);
+      expect(readJson(join(stateDir, "idle-static.json"))).toEqual({ trayIdleStatic: false });
+
+      // reset forgets the runtime choice: the configured value comes back and
+      // the shared file is gone.
+      const reset = executables.get("popup-reset");
+      expect(reset).toBeTypeOf("function");
+      await reset?.({});
+      const restored = await waitFor(() => {
+        const info = readJson(hostInfoPathOf(stateDir));
+        return info?.mode === "tray" && info.trayIdleStatic === true ? info : undefined;
+      });
+      expect(restored.trayIdleStatic).toBe(true);
+      expect(existsSync(join(stateDir, "idle-static.json"))).toBe(false);
+    }
 
     queue.push({ type: "permission.asked", data: { id: "per_smoke", sessionID: "ses_smoke", action: "bash", resources: ["npm test"] } });
     const waiting = await waitFor(() => {

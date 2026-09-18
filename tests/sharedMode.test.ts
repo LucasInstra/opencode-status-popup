@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { consumeModeRequest, readSharedMode, writeSharedMode } from "../src/sharedMode";
+import { consumeModeRequest, consumeRequest, readSharedMode, writeSharedMode } from "../src/sharedMode";
 
 describe("shared mode file", () => {
   const dir = mkdtempSync(join(tmpdir(), "status-popup-mode-"));
@@ -46,6 +46,12 @@ describe("mode request", () => {
   it("consumes a valid request and reports its mode", () => {
     writeFileSync(file, '{"mode":"toggle"}');
     expect(consumeModeRequest(file)).toEqual({ mode: "toggle" });
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("hands any payload to the caller, not only mode requests", () => {
+    writeFileSync(file, '{"idleStatic":"toggle"}');
+    expect(consumeRequest(file)).toEqual({ idleStatic: "toggle" });
     expect(existsSync(file)).toBe(false);
   });
 

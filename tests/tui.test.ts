@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import tui from "../src/tui";
-import { modeRequestPathOf } from "../src/paths";
+import { idleStaticRequestPathOf, modeRequestPathOf } from "../src/paths";
 
 const cleanups: Array<() => void> = [];
 
@@ -19,7 +19,7 @@ describe("tui entrypoint", () => {
     expect(typeof tui.setup).toBe("function");
   });
 
-  it("registers the four popup commands in a keymap layer, palette-only", () => {
+  it("registers the five popup commands in a keymap layer, palette-only", () => {
     const { context, layer } = mount();
     const commands = layer().commands ?? [];
     // No slash names: the `/` completion lists the server commands, and a slash
@@ -31,14 +31,15 @@ describe("tui entrypoint", () => {
       "popup.tray",
       "popup.toggle",
       "popup.reset",
+      "popup.static",
     ]);
     expect(layer().mode).toBe("global");
   });
 
-  it("writes a mode request for every command and toasts the outcome", () => {
+  it("writes a mode request for every renderer command and toasts the outcome", () => {
     const stateDir = stateDirFor("commands");
     const { context, layer } = mount(stateDir);
-    const commands = layer().commands ?? [];
+    const commands = (layer().commands ?? []).filter((command) => command.id !== "popup.static");
     const expected = ["window", "tray", "toggle", "reset"];
 
     for (const [index, command] of commands.entries()) {
@@ -51,6 +52,20 @@ describe("tui entrypoint", () => {
     expect(context.toasts).toHaveLength(4);
     // The request file is replaced atomically; the temporary never survives.
     expect(existsSync(`${modeRequestPathOf(stateDir)}.tmp`)).toBe(false);
+  });
+
+  it("writes a toggle request for the tray idle command", () => {
+    const stateDir = stateDirFor("idle-static");
+    const { context, layer } = mount(stateDir);
+    const command = (layer().commands ?? []).find((next) => next.id === "popup.static");
+
+    expect(command?.run).toBeTypeOf("function");
+    command?.run?.();
+    expect(JSON.parse(readFileSync(idleStaticRequestPathOf(stateDir), "utf8"))).toEqual({
+      idleStatic: "toggle",
+    });
+    expect(context.toasts.at(-1)?.variant).toBe("info");
+    expect(existsSync(`${idleStaticRequestPathOf(stateDir)}.tmp`)).toBe(false);
   });
 
   it("hands the slot claim back, so a reload cannot stack the palette", () => {
