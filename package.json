@@ -53,7 +53,7 @@
     "preview:stop": "node scripts/preview.mjs --stop"
   },
   "dependencies": {
-    "@opencode/plugin": "^2.0.5"
+    "@opencode/plugin": "^2.0.14"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
