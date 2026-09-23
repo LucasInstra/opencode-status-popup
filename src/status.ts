@@ -4,6 +4,7 @@
  *
  * Phases, highest priority first:
  *   permission - the agent is blocked waiting for the user to allow something
+ *     or to answer a question
  *   error      - the last execution of a session failed
  *   retry      - a provider request failed and another attempt is scheduled
  *   busy       - a session is working
@@ -20,7 +21,7 @@ export interface ActivitySnapshot {
   readonly retry: number;
   /** Sessions whose last execution failed and are still in the error window. */
   readonly errors: number;
-  /** Permission requests that are waiting for the user. */
+  /** Permission and question requests that are waiting for the user. */
   readonly permissions: number;
   /** Short label for the phase, shown in the popup tooltip. */
   readonly detail: string;
@@ -40,7 +41,7 @@ export interface SessionActivityOptions {
  * event cannot pin the popup to "busy" forever. */
 export const MAX_SILENCE_MS = 45 * 60 * 1000;
 
-/** Safety net for a permission request whose reply we never saw. */
+/** Safety net for a permission or question request whose reply we never saw. */
 export const MAX_PERMISSION_MS = 15 * 60 * 1000;
 
 const DEFAULT_ERROR_HOLD_MS = 90_000;
@@ -118,7 +119,21 @@ export class SessionActivity {
       return this.refresh(now);
     }
 
+    if (event.type === "question.asked") {
+      const request = readQuestion(event.data);
+      if (!request) return undefined;
+      this.permissions.set(request.id, { detail: request.detail, at: now });
+      return this.refresh(now);
+    }
+
     if (event.type === "permission.replied") {
+      const requestID = readString(event.data, "requestID");
+      if (!requestID) return undefined;
+      this.permissions.delete(requestID);
+      return this.refresh(now);
+    }
+
+    if (event.type === "question.replied" || event.type === "question.rejected") {
       const requestID = readString(event.data, "requestID");
       if (!requestID) return undefined;
       this.permissions.delete(requestID);
@@ -282,6 +297,25 @@ function readPermission(data: unknown): { id: string; detail: string } | undefin
     : [];
   const detail = [action, resources[0]].filter(Boolean).join(" ");
   return { id, detail: truncate(detail) };
+}
+
+function readQuestion(data: unknown): { id: string; detail: string } | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const record = data as Record<string, unknown>;
+  const id =
+    (typeof record.id === "string" && record.id ? record.id : undefined) ??
+    (typeof record.requestID === "string" && record.requestID ? record.requestID : undefined);
+  if (!id) return undefined;
+
+  const questions = Array.isArray(record.questions) ? record.questions : [];
+  const first = questions.length > 0 && typeof questions[0] === "object" && questions[0] !== null
+    ? (questions[0] as Record<string, unknown>)
+    : undefined;
+  const text =
+    (typeof first?.question === "string" && first.question ? first.question : undefined) ??
+    (typeof first?.header === "string" && first.header ? first.header : undefined) ??
+    "question";
+  return { id, detail: truncate(text) };
 }
 
 function formatError(data: unknown): string {

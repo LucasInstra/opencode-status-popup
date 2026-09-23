@@ -1,7 +1,7 @@
 {
   "name": "opencode-status-popup",
-  "version": "0.3.1",
-  "description": "Always-on-top status pill (or tray icon) for OpenCode: types the word out while the agent works, amber on provider retries, red on failures, violet when a permission is waiting for you.",
+  "version": "0.3.2",
+  "description": "Always-on-top status pill (or tray icon) for OpenCode: types the word out while the agent works, amber on provider retries, red on failures, violet when a permission or an answer is waiting for you.",
   "type": "module",
   "license": "MIT",
   "author": "LucasInstra",

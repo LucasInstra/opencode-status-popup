@@ -173,6 +173,86 @@ describe("SessionActivity", () => {
     });
   });
 
+  describe("questions", () => {
+    function questionAsked(id: string, question = "Which renderer?", header = "Popup") {
+      return {
+        type: "question.asked",
+        data: { id, sessionID: "ses_1", questions: [{ question, header, options: [] }] },
+      };
+    }
+
+    it("asks for attention and names the question", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      const snapshot = activity.apply(questionAsked("que_1", "Put the popup in the tray?"));
+      expect(snapshot).toMatchObject({
+        phase: "permission",
+        permissions: 1,
+        detail: "Put the popup in the tray?",
+      });
+    });
+
+    it("has priority over a busy session and over an error", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      activity.apply({ type: "session.execution.failed", data: { sessionID: "ses_2", error: { type: "boom" } } });
+      expect(activity.snapshot().phase).toBe("error");
+      activity.apply(questionAsked("que_1"));
+      expect(activity.snapshot().phase).toBe("permission");
+    });
+
+    it("goes back to the previous phase when the question is replied", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      activity.apply(questionAsked("que_1"));
+      expect(activity.snapshot().phase).toBe("permission");
+      const snapshot = activity.apply({
+        type: "question.replied",
+        data: { sessionID: "ses_1", requestID: "que_1", answers: [["tray"]] },
+      });
+      expect(snapshot?.phase).toBe("busy");
+      expect(activity.snapshot().permissions).toBe(0);
+    });
+
+    it("goes back to the previous phase when the question is rejected", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      activity.apply(questionAsked("que_1"));
+      expect(activity.snapshot().phase).toBe("permission");
+      const snapshot = activity.apply({
+        type: "question.rejected",
+        data: { sessionID: "ses_1", requestID: "que_1" },
+      });
+      expect(snapshot?.phase).toBe("busy");
+      expect(activity.snapshot().permissions).toBe(0);
+    });
+
+    it("does not clear a pending question for an unknown request id", () => {
+      const activity = new SessionActivity();
+      activity.apply(questionAsked("que_1"));
+      expect(activity.snapshot().permissions).toBe(1);
+      activity.apply({ type: "question.replied", data: { sessionID: "ses_1", requestID: "que_nope" } });
+      expect(activity.snapshot().permissions).toBe(1);
+      expect(activity.snapshot().phase).toBe("permission");
+    });
+
+    it("expires a question nobody answered", () => {
+      const activity = new SessionActivity();
+      const now = 1_000_000;
+      activity.apply(questionAsked("que_1"), now);
+      expect(activity.snapshot(now + MAX_PERMISSION_MS - 1).phase).toBe("permission");
+      expect(activity.snapshot(now + MAX_PERMISSION_MS + 1).phase).toBe("idle");
+    });
+
+    it("ignores a question without an id and keeps counting permissions together", () => {
+      const activity = new SessionActivity();
+      expect(activity.apply({ type: "question.asked", data: { sessionID: "ses_1", questions: [] } })).toBeUndefined();
+      activity.apply(asked("per_1", "bash"));
+      activity.apply(questionAsked("que_1", "Continue?"));
+      expect(activity.snapshot().permissions).toBe(2);
+    });
+  });
+
   it("keeps the phase stable across repeated events", () => {
     const activity = new SessionActivity();
     activity.apply(started("ses_1"));

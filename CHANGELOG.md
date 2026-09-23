@@ -4,6 +4,18 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.2 — 2026-09-23
+
+### Fixed
+
+- The popup now lights up violet with a `?` when the agent asks a question,
+  not just on a permission request. `question.asked` is tracked like
+  `permission.asked` (detail from the question text, shown as
+  `needs you: <question>`), and `question.replied` / `question.rejected`
+  clear it. Before, a question left the pill blue or let it fall back to
+  idle, so a session waiting for an answer was easy to miss from another
+  window.
+
 ## 0.3.1 — 2026-09-18
 
 ### Added
