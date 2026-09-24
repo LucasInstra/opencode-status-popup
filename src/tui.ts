@@ -49,6 +49,10 @@ export default {
     // otherwise write mode requests nobody consumes and toast a success that
     // never happens.
     if (!parseConfig(context.options).enabled) return;
+    // The host is Windows only (PowerShell + WPF/WinForms); on other platforms
+    // the palette would do the same pointless thing, so stay out of it like
+    // the server entrypoint does.
+    if (process.platform !== "win32") return;
 
     const stateDir = statusStateDir(process.env.OPENCODE_STATUS_POPUP_DIR);
 

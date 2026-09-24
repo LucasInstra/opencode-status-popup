@@ -69,8 +69,8 @@ if (options.watch) {
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
-    console.log("\nstopping preview host");
-    stopHost();
+    console.log(options.keep ? "\nleaving the preview host running" : "\nstopping preview host");
+    release();
     process.exit(0);
   });
 }
@@ -265,13 +265,18 @@ function stopHost() {
   }
 }
 
-/** Drops our presence file and only stops the host when this run started it. */
+/**
+ * Drops our presence file and stops the host when this run started it, unless
+ * --keep asked for the host to survive the preview. A host the preview only
+ * attached to (the real plugin's) is always left alone.
+ */
 function release() {
   try {
     if (existsSync(presenceFile)) rmSync(presenceFile);
   } catch {
     // ignore
   }
+  if (options.keep) return;
   if (!spawnedHost) return;
   const info = readHostInfo();
   if (info?.pid) {

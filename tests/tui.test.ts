@@ -86,6 +86,18 @@ describe("tui entrypoint", () => {
     cleanup();
   });
 
+  it("stays off the palette when the platform cannot render the popup", () => {
+    const original = process.platform;
+    Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+    try {
+      const { context, claimed } = mount();
+      expect(claimed()).toBe(false);
+      expect(context.toasts).toEqual([]);
+    } finally {
+      Object.defineProperty(process, "platform", { value: original, configurable: true });
+    }
+  });
+
   it("reports an error instead of throwing when the request cannot be written", () => {
     const blocked = join(stateDirFor("blocked"), "not-a-directory");
     writeFileSync(blocked, "a file where the state directory should be");
