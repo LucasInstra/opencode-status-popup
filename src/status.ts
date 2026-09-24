@@ -4,6 +4,7 @@
  *
  * Phases, highest priority first:
  *   permission - the agent is blocked waiting for the user to allow something
+ *     or to answer a question
  *   error      - the last execution of a session failed
  *   retry      - a provider request failed and another attempt is scheduled
  *   busy       - a session is working
@@ -20,7 +21,7 @@ export interface ActivitySnapshot {
   readonly retry: number;
   /** Sessions whose last execution failed and are still in the error window. */
   readonly errors: number;
-  /** Permission requests that are waiting for the user. */
+  /** Permission and form requests that are waiting for the user. */
   readonly permissions: number;
   /** Short label for the phase, shown in the popup tooltip. */
   readonly detail: string;
@@ -40,7 +41,7 @@ export interface SessionActivityOptions {
  * event cannot pin the popup to "busy" forever. */
 export const MAX_SILENCE_MS = 45 * 60 * 1000;
 
-/** Safety net for a permission request whose reply we never saw. */
+/** Safety net for a permission or form request whose reply we never saw. */
 export const MAX_PERMISSION_MS = 15 * 60 * 1000;
 
 const DEFAULT_ERROR_HOLD_MS = 90_000;
@@ -118,8 +119,25 @@ export class SessionActivity {
       return this.refresh(now);
     }
 
+    // A form is how OpenCode 2 asks the user a question (the agent's question
+    // tool, and any other prompt with fields): it waits for a reply exactly
+    // like a permission request does.
+    if (event.type === "form.created") {
+      const request = readForm(event.data);
+      if (!request) return undefined;
+      this.permissions.set(request.id, { detail: request.detail, at: now });
+      return this.refresh(now);
+    }
+
     if (event.type === "permission.replied") {
       const requestID = readString(event.data, "requestID");
+      if (!requestID) return undefined;
+      this.permissions.delete(requestID);
+      return this.refresh(now);
+    }
+
+    if (event.type === "form.replied" || event.type === "form.cancelled") {
+      const requestID = readString(event.data, "id");
       if (!requestID) return undefined;
       this.permissions.delete(requestID);
       return this.refresh(now);
@@ -282,6 +300,32 @@ function readPermission(data: unknown): { id: string; detail: string } | undefin
     : [];
   const detail = [action, resources[0]].filter(Boolean).join(" ");
   return { id, detail: truncate(detail) };
+}
+
+/**
+ * A form event carries the form under `data.form`; the settle events carry the
+ * id at the top level. The first field title is the most specific label (the
+ * question text); the form title is the fallback.
+ */
+function readForm(data: unknown): { id: string; detail: string } | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const form = (data as Record<string, unknown>).form;
+  if (typeof form !== "object" || form === null) return undefined;
+
+  const record = form as Record<string, unknown>;
+  const id = typeof record.id === "string" && record.id ? record.id : undefined;
+  if (!id) return undefined;
+
+  const fields = Array.isArray(record.fields) ? record.fields : [];
+  const first =
+    fields.length > 0 && typeof fields[0] === "object" && fields[0] !== null
+      ? (fields[0] as Record<string, unknown>)
+      : undefined;
+  const text =
+    (typeof first?.title === "string" && first.title ? first.title : undefined) ??
+    (typeof record.title === "string" && record.title ? record.title : undefined) ??
+    "form";
+  return { id, detail: truncate(text) };
 }
 
 function formatError(data: unknown): string {

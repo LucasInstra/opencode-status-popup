@@ -4,6 +4,17 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- A question asked by the agent now lights the popup violet with a `?`, like a
+  permission request does. OpenCode 2 asks through a form
+  (`form.created` / `form.replied` / `form.cancelled`) and the plugin watched
+  only `permission.*`, so a session waiting for an answer was easy to miss.
+  The detail is the question text (the first form field title, falling back to
+  the form title).
+
 ## 0.3.1 — 2026-09-18
 
 ### Added

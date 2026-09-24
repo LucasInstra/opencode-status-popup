@@ -173,6 +173,108 @@ describe("SessionActivity", () => {
     });
   });
 
+  describe("forms", () => {
+    // The V2 prompt mechanism: a question is a form with fields, and the
+    // settle events carry the form id at the top level.
+    function formCreated(id: string, title = "Question", fieldTitle = "Which renderer?") {
+      return {
+        type: "form.created",
+        data: {
+          form: {
+            id,
+            sessionID: "ses_1",
+            title,
+            fields: [{ key: "choice", title: fieldTitle, type: "string", options: [] }],
+          },
+        },
+      };
+    }
+
+    it("asks for attention and names the question", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      const snapshot = activity.apply(formCreated("frm_1", "Popup", "Put the popup in the tray?"));
+      expect(snapshot).toMatchObject({
+        phase: "permission",
+        permissions: 1,
+        detail: "Put the popup in the tray?",
+      });
+    });
+
+    it("falls back to the form title when the field has none", () => {
+      const activity = new SessionActivity();
+      const snapshot = activity.apply({
+        type: "form.created",
+        data: {
+          form: { id: "frm_1", sessionID: "ses_1", title: "Answer me", fields: [{ key: "choice", type: "string" }] },
+        },
+      });
+      expect(snapshot).toMatchObject({ phase: "permission", permissions: 1, detail: "Answer me" });
+    });
+
+    it("has priority over a busy session and over an error", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      activity.apply({ type: "session.execution.failed", data: { sessionID: "ses_2", error: { type: "boom" } } });
+      expect(activity.snapshot().phase).toBe("error");
+      activity.apply(formCreated("frm_1"));
+      expect(activity.snapshot().phase).toBe("permission");
+    });
+
+    it("goes back to the previous phase when the form is replied", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      activity.apply(formCreated("frm_1"));
+      expect(activity.snapshot().phase).toBe("permission");
+      const snapshot = activity.apply({
+        type: "form.replied",
+        data: { id: "frm_1", sessionID: "ses_1", answer: { choice: "tray" } },
+      });
+      expect(snapshot?.phase).toBe("busy");
+      expect(activity.snapshot().permissions).toBe(0);
+    });
+
+    it("goes back to the previous phase when the form is cancelled", () => {
+      const activity = new SessionActivity();
+      activity.apply(started("ses_1"));
+      activity.apply(formCreated("frm_1"));
+      expect(activity.snapshot().phase).toBe("permission");
+      const snapshot = activity.apply({
+        type: "form.cancelled",
+        data: { id: "frm_1", sessionID: "ses_1" },
+      });
+      expect(snapshot?.phase).toBe("busy");
+      expect(activity.snapshot().permissions).toBe(0);
+    });
+
+    it("does not clear a pending form for an unknown id", () => {
+      const activity = new SessionActivity();
+      activity.apply(formCreated("frm_1"));
+      expect(activity.snapshot().permissions).toBe(1);
+      activity.apply({ type: "form.cancelled", data: { id: "frm_nope", sessionID: "ses_1" } });
+      expect(activity.snapshot().permissions).toBe(1);
+      expect(activity.snapshot().phase).toBe("permission");
+    });
+
+    it("expires a form nobody answered", () => {
+      const activity = new SessionActivity();
+      const now = 1_000_000;
+      activity.apply(formCreated("frm_1"), now);
+      expect(activity.snapshot(now + MAX_PERMISSION_MS - 1).phase).toBe("permission");
+      expect(activity.snapshot(now + MAX_PERMISSION_MS + 1).phase).toBe("idle");
+    });
+
+    it("ignores a form without an id and counts forms and permissions together", () => {
+      const activity = new SessionActivity();
+      expect(
+        activity.apply({ type: "form.created", data: { form: { sessionID: "ses_1", title: "No id", fields: [] } } }),
+      ).toBeUndefined();
+      activity.apply(asked("per_1", "bash"));
+      activity.apply(formCreated("frm_1", "Popup", "Continue?"));
+      expect(activity.snapshot().permissions).toBe(2);
+    });
+  });
+
   it("keeps the phase stable across repeated events", () => {
     const activity = new SessionActivity();
     activity.apply(started("ses_1"));

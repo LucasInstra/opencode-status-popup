@@ -166,6 +166,29 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
     expect(waiting.detail).toBe("bash npm test");
 
     queue.push({ type: "permission.replied", data: { sessionID: "ses_smoke", requestID: "per_smoke", reply: "once" } });
+
+    // A question arrives as a form in OpenCode 2: same waiting phase, detail
+    // from the first field title.
+    queue.push({
+      type: "form.created",
+      data: {
+        form: {
+          id: "frm_smoke",
+          sessionID: "ses_smoke",
+          title: "Smoke form",
+          fields: [{ key: "choice", title: "Tray or window?", type: "string", options: [] }],
+        },
+      },
+    });
+    const question = await waitFor(() => {
+      const data = readJson(presence);
+      return data?.phase === "permission" && data.detail === "Tray or window?" ? data : undefined;
+    });
+    expect(question.detail).toBe("Tray or window?");
+
+    queue.push({ type: "form.cancelled", data: { id: "frm_smoke", sessionID: "ses_smoke" } });
+    await waitFor(() => (readJson(presence)?.permissions === 0 ? true : undefined));
+
     queue.push({ type: "session.idle", data: { sessionID: "ses_smoke" } });
     await waitFor(() => (readJson(presence)?.phase === "idle" ? true : undefined));
   } finally {

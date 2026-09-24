@@ -21,10 +21,10 @@
 
 An OpenCode V2 plugin that shows what the agent is doing on a second surface, outside the terminal.
 
-While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. The same surface doubles as an attention light: it turns **amber** while a provider request is being retried, **red** when an execution failed, and **violet with a `?`** when OpenCode is waiting for you to allow something.
+While a session is thinking, a small always-on-top pill **types "opencode" letter by letter, on a loop** (`o` → `op` → `ope` → … → `opencode`), highlighting the newest letter. The same surface doubles as an attention light: it turns **amber** while a provider request is being retried, **red** when an execution failed, and **violet with a `?`** when OpenCode is waiting for you to allow something or to answer a question.
 
 - **You are never left guessing** — is it working, retrying, stuck, or waiting for you?
-- **The permission state comes first**: a session blocked on a permission decision outranks everything else, so you can be in another window and still notice.
+- **The permission state comes first**: a session blocked on a permission decision or on a question outranks everything else, so you can be in another window and still notice.
 - **Out of the way**: the pill has no border, no taskbar button, it never steals focus, it reopens where you left it and you can drag it anywhere. A plain click on it brings the OpenCode terminal forward. Prefer nothing on screen? Right click it and pick `Show in tray` (or ask *"put the popup in the tray"*).
 - **Several projects, one indicator**: every OpenCode instance reports in and the popup shows the union.
 - **Nothing to install twice**: the UI is a small PowerShell process that starts on demand and exits by itself; the plugin itself is plain TypeScript.
@@ -37,9 +37,9 @@ While a session is thinking, a small always-on-top pill **types "opencode" lette
 | `busy` | `opencode` typing itself, blue | the o drawing itself pixel by pixel, blue | the agent is working |
 | `retry` | `opencode` typing itself, amber | the o drawing itself pixel by pixel, amber | a provider request failed and another attempt is scheduled |
 | `error` | `opencode!`, red, breathing | the o, red, blink | an execution failed (kept for `errorHoldSeconds`, or until the session works again) |
-| `permission` | `opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision from you |
+| `permission` | `opencode?`, violet, faster breathing | the o, violet, fast blink | OpenCode is blocked waiting for a permission decision or an answer from you |
 
-Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission is never hidden behind work happening in another session. In tray mode, `Show details` in the right click menu opens a balloon with the live detail — `needs you: bash git push origin main`, `error: 429 provider.rate-limit` — and lists every project involved.
+Priority is `permission` > `error` > `retry` > `busy` > `idle`, so a session waiting for permission or for an answer is never hidden behind work happening in another session. In tray mode, `Show details` in the right click menu opens a balloon with the live detail — `needs you: bash git push origin main`, `needs you: Put the popup in the tray?`, `error: 429 provider.rate-limit` — and lists every project involved.
 
 ![the five states](https://raw.githubusercontent.com/LucasInstra/opencode-status-popup/main/docs/states.png)
 
@@ -204,7 +204,7 @@ OpenCode server
                         (named mutex per state dir) aggregates them and paints
 ```
 
-- **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Permission prompts come from `permission.asked` / `permission.replied`. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
+- **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Prompts waiting for you come from `permission.asked` / `permission.replied` and from `form.created` / `form.replied` / `form.cancelled` — OpenCode 2 asks questions through a form, with the question text as the detail. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
 - **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
 - **State directory**: next to the presence files it holds `host.json` (the running host: pid, renderer and the settings it renders, rewritten as a heartbeat), `mode.json` (the renderer chosen at runtime, shared by every instance), `mode.request` (a switch waiting for the next server tick), `idle-static.json` (the tray idle chosen at runtime, shared by every instance), `idle-static.request` (a toggle waiting for the next server tick), `position.json` (the configured corner the host applies when it places the pill), `window.json` (where the pill was last placed) and the two logs, `plugin.log` and `host.log` — each rotates to a `.1` copy at its cap (512 KiB and 256 KiB), so the newest lines are the ones kept. The preview harness adds a fake `state\preview.json` of its own while it runs.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed. Files a killed instance left behind are reaped on the next setup and again before the last instance decides to stop the host.
