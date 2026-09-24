@@ -4,6 +4,25 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- `--keep` in the preview now really leaves the host running when the preview
+  exits through Ctrl+C or `--seconds`, and Ctrl+C no longer stops a host the
+  preview only attached to (the real plugin's).
+- The TUI palette is not registered on non-Windows platforms anymore: the
+  commands wrote requests nobody consumed and toasted a success that never
+  happened.
+
+### Changed
+
+- README rewritten around a quick start, with the states, interaction and
+  options first and the internals, preview harness and debugging under
+  Development.
+- The repository pins LF (`.gitattributes`), so a packed tarball matches the
+  tag byte for byte instead of shipping CRLF for a few files.
+
 ## 0.3.2 — 2026-09-24
 
 ### Fixed
