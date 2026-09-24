@@ -1,0 +1,4 @@
+# Keep the working tree in LF so `npm pack` ships exactly what the tag holds:
+# with core.autocrlf=true a checkout rewrites some files to CRLF and the
+# published tarball no longer matches the git blobs byte for byte.
+* text=auto eol=lf
