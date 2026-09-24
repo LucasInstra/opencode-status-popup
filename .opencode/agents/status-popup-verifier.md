@@ -48,9 +48,9 @@ Checks, in this order:
 
 1. `git status --short` — record the tree state first; dirty files are context for the report, not a failure by themselves.
 2. `npm run typecheck`
-3. `npm test` — expect 11 test files / 81 tests with the smoke file skipped (79 passed, 2 skipped). Counts drift between releases; report actual vs expected.
+3. `npm test` — expect 11 test files / 82 tests with the smoke file skipped (80 passed, 2 skipped). Counts drift between releases; report actual vs expected.
 4. `$env:SMOKE=1; npm run smoke` — loads the plugin, drives synthetic events and spawns a real PowerShell host for both renderers. It briefly opens the pill window and a tray icon on the desktop; that is the check working, not a failure.
-5. `npm pack --dry-run --json` — the tarball file list (22 files; was 21 as of 0.2.3; the count includes the unreleased `src/sharedIdleStatic.ts`) must cover `index.ts`, `tui.ts`, `src/**`, `host/**` (every `.ps1` plus `TrayIcon.cs`), `README.md`, `LICENSE`, and nothing the runtime does not need.
+5. `npm pack --dry-run --json` — the tarball file list (22 files; was 21 as of 0.2.3) must cover `index.ts`, `tui.ts`, `src/**`, `host/**` (every `.ps1` plus `TrayIcon.cs`), `README.md`, `LICENSE`, and nothing the runtime does not need.
 
 Notes:
 - The smoke test needs Windows and PowerShell; it is the same step CI runs (`.github/workflows/ci.yml`).

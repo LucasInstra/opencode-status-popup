@@ -205,7 +205,7 @@ OpenCode server
 ```
 
 - **Busy detection** uses the public event stream: `session.status` (`busy`/`retry`/`idle`), `session.execution.started/succeeded/failed/interrupted`, `session.idle`, streaming deltas and tool activity. Prompts waiting for you come from `permission.asked` / `permission.replied` and from `form.created` / `form.replied` / `form.cancelled` — OpenCode 2 asks questions through a form, with the question text as the detail. Every event is matched against the plugin's own location, so a busy session in another project does not light up your pill.
-- **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the tray tooltip lists the project names.
+- **Multiple instances** (several OpenCode windows, several projects on one server) each write their own presence file. The host shows the union and the `Show details` balloon lists the project names.
 - **State directory**: next to the presence files it holds `host.json` (the running host: pid, renderer and the settings it renders, rewritten as a heartbeat), `mode.json` (the renderer chosen at runtime, shared by every instance), `mode.request` (a switch waiting for the next server tick), `idle-static.json` (the tray idle chosen at runtime, shared by every instance), `idle-static.request` (a toggle waiting for the next server tick), `position.json` (the configured corner the host applies when it places the pill), `window.json` (where the pill was last placed) and the two logs, `plugin.log` and `host.log` — each rotates to a `.1` copy at its cap (512 KiB and 256 KiB), so the newest lines are the ones kept. The preview harness adds a fake `state\preview.json` of its own while it runs.
 - **Crash safety**: presence files expire after `freshSeconds`, a session that sends no event for 45 minutes is dropped, and the host exits by itself when nothing is fresh. The plugin also restarts the host if it died or if the options changed. Files a killed instance left behind are reaped on the next setup and again before the last instance decides to stop the host.
 - **Tray identity**: the icon is registered through `Shell_NotifyIcon` with a fixed GUID (see `host/TrayIcon.cs`), so the shell remembers the place you dragged it to across restarts, unlike the executable-plus-uid slot that every PowerShell tray icon shares.
@@ -248,7 +248,7 @@ npm run preview:tray -- --keep
 - `--word <text>` / `--type <ms>` — the word and the typing speed.
 - `--idle-static` — pin the tray idle icon: the full blue o, no blink.
 - `--seconds N` — stop by itself after N seconds.
-- `--keep` — leave the host running when the preview exits.
+- `--keep` — leave the host running when the preview exits (Ctrl+C and `--seconds` included); `preview:stop` still stops it.
 
 `pwsh -File scripts/dev-host.ps1 -Mode window` runs the host in the foreground and writes everything it prints to `%TEMP%\opencode-status-popup\test-<mode>.out` (`test-window.out`, or `test-tray.out` for `-Mode tray`), which is the quickest way to read a script error.
 
