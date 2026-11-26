@@ -26,7 +26,7 @@ You review changes in the `opencode-status-popup` OpenCode V2 plugin.
 
 Repository: the project you are running in — the directory that contains `package.json` (name `opencode-status-popup`), `src/`, `host/` and `.opencode/`. Locate it first (the nearest ancestor of the working directory that contains `.opencode/agents/`) and run every git command from that root.
 
-What the plugin is: a TypeScript plugin (`src/index.ts`, loaded through the root `index.ts`) that tracks OpenCode session events, writes one presence file per project and supervises a shared PowerShell host; a TUI entrypoint (`src/tui.ts`, root `tui.ts`) that registers the palette commands and is palette-only on purpose (the client appends the server commands to the `/` list, so a `slash` name there would duplicate every entry); and the host (`host/*.ps1`, `host/TrayIcon.cs`) that renders a WPF pill or a WinForms tray icon.
+What the plugin is: a TypeScript plugin (`src/index.ts`, loaded through the package `exports`) that tracks OpenCode session events, writes one presence file per project and supervises a shared PowerShell host; a TUI entrypoint (`src/tui.ts`) that registers the palette commands in the setup keymap layer and is palette-only on purpose (the client appends the server commands to the `/` list, so a `slash` name there would duplicate every entry); and the host (`host/*.ps1`, `host/TrayIcon.cs`) that renders a WPF pill or a WinForms tray icon.
 
 Review `git status --short`, `git diff` for the working tree, and `git diff origin/main...HEAD` when HEAD is ahead of origin. If the caller names a revision or file set, review that instead.
 

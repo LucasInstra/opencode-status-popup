@@ -47,19 +47,23 @@ export const MAX_PERMISSION_MS = 15 * 60 * 1000;
 const DEFAULT_ERROR_HOLD_MS = 90_000;
 const MAX_DETAIL_LENGTH = 48;
 
-const STOP_EVENTS = new Set<string>([
+const PERMISSION_EVENTS = ["permission.asked", "permission.replied"] as const;
+const FORM_EVENTS = ["form.created", "form.replied", "form.cancelled"] as const;
+const STATUS_EVENTS = ["session.status"] as const;
+const FAILURE_EVENTS = ["session.execution.failed"] as const;
+
+const STOP_EVENTS = [
   "session.idle",
   "session.execution.succeeded",
-  "session.execution.failed",
   "session.execution.interrupted",
-]);
+] as const;
 
-const RETRY_EVENTS = new Set<string>(["session.retry.scheduled"]);
+const RETRY_EVENTS = ["session.retry.scheduled"] as const;
 
 /** Events that prove a session is working again and clear an earlier error. */
-const REVIVE_EVENTS = new Set<string>(["session.execution.started", "session.inbox.delivered"]);
+const REVIVE_EVENTS = ["session.execution.started", "session.inbox.delivered"] as const;
 
-const BUSY_EVENTS = new Set<string>([
+const BUSY_EVENTS = [
   "session.step.started",
   "session.step.streamed",
   "session.text.started",
@@ -75,7 +79,29 @@ const BUSY_EVENTS = new Set<string>([
   "session.shell.started",
   "session.compaction.started",
   "session.compaction.delta",
-]);
+] as const;
+
+const STOP_EVENT_SET = new Set<string>(STOP_EVENTS);
+const RETRY_EVENT_SET = new Set<string>(RETRY_EVENTS);
+const REVIVE_EVENT_SET = new Set<string>(REVIVE_EVENTS);
+const BUSY_EVENT_SET = new Set<string>(BUSY_EVENTS);
+
+/**
+ * Every event type this tracker reacts to. OpenCode 2.2+ asks the host for only
+ * these types, so unrelated events are not delivered to the plugin. It is built
+ * from the same groups `apply` matches, so the list stays in step with the
+ * handling.
+ */
+export const HANDLED_EVENTS = [
+  ...PERMISSION_EVENTS,
+  ...FORM_EVENTS,
+  ...STATUS_EVENTS,
+  ...FAILURE_EVENTS,
+  ...STOP_EVENTS,
+  ...RETRY_EVENTS,
+  ...REVIVE_EVENTS,
+  ...BUSY_EVENTS,
+] as const;
 
 interface SessionEntry {
   phase: "busy" | "retry";
@@ -160,12 +186,12 @@ export class SessionActivity {
     } else if (event.type === "session.execution.failed") {
       this.retire(sessionID);
       this.failures.set(sessionID, { detail: formatError(event.data), at: now });
-    } else if (STOP_EVENTS.has(event.type)) {
+    } else if (STOP_EVENT_SET.has(event.type)) {
       this.retire(sessionID);
-    } else if (RETRY_EVENTS.has(event.type)) {
+    } else if (RETRY_EVENT_SET.has(event.type)) {
       this.failures.delete(sessionID);
       this.set(sessionID, "retry", now);
-    } else if (REVIVE_EVENTS.has(event.type) || BUSY_EVENTS.has(event.type)) {
+    } else if (REVIVE_EVENT_SET.has(event.type) || BUSY_EVENT_SET.has(event.type)) {
       this.failures.delete(sessionID);
       this.set(sessionID, "busy", now);
     } else {

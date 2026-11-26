@@ -26,7 +26,7 @@ import { PresenceWriter, reapStalePresenceFiles } from "./presence";
 import { consumeModeRequest, consumeRequest, readSharedMode, writeSharedMode } from "./sharedMode";
 import { readSharedIdleStatic, writeSharedIdleStatic } from "./sharedIdleStatic";
 import { writeSharedPosition } from "./sharedPosition";
-import { SessionActivity, type RawEvent } from "./status";
+import { HANDLED_EVENTS, SessionActivity, type RawEvent } from "./status";
 
 const PLUGIN_ID = "opencode.status-popup";
 const HEARTBEAT_MS = 3000;
@@ -285,7 +285,10 @@ export default Plugin.define({
 
     void (async () => {
       try {
-        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+        for await (const event of ctx.event.subscribe({
+          types: HANDLED_EVENTS,
+          signal: controller.signal,
+        })) {
           const accepted = belongsToLocation(event, directory);
           if (accepted) {
             snapshot = activity.apply(event) ?? snapshot;

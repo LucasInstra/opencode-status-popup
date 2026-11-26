@@ -68,30 +68,28 @@ describe("tui entrypoint", () => {
     expect(existsSync(`${idleStaticRequestPathOf(stateDir)}.tmp`)).toBe(false);
   });
 
-  it("hands the slot claim back, so a reload cannot stack the palette", () => {
-    const { cleanup, disposed } = mount();
+  it("registers the layer synchronously during setup", () => {
+    const { layer, registered } = mount();
 
-    expect(disposed()).toBe(false);
-    cleanup();
-    expect(disposed()).toBe(true);
+    expect(registered()).toBe(true);
+    expect(layer().mode).toBe("global");
   });
 
   it("stays off the palette when the plugin is disabled", () => {
     const stateDir = stateDirFor("disabled");
-    const { context, claimed, cleanup } = mount(stateDir, { enabled: false });
+    const { context, registered } = mount(stateDir, { enabled: false });
 
-    expect(claimed()).toBe(false);
+    expect(registered()).toBe(false);
     expect(context.toasts).toEqual([]);
     expect(existsSync(modeRequestPathOf(stateDir))).toBe(false);
-    cleanup();
   });
 
   it("stays off the palette when the platform cannot render the popup", () => {
     const original = process.platform;
     Object.defineProperty(process, "platform", { value: "linux", configurable: true });
     try {
-      const { context, claimed } = mount();
-      expect(claimed()).toBe(false);
+      const { context, registered } = mount();
+      expect(registered()).toBe(false);
       expect(context.toasts).toEqual([]);
     } finally {
       Object.defineProperty(process, "platform", { value: original, configurable: true });
@@ -130,9 +128,7 @@ interface Layer {
 interface Harness {
   context: { toasts: Toasts[] };
   layer: () => Layer;
-  cleanup: () => void;
-  disposed: () => boolean;
-  claimed: () => boolean;
+  registered: () => boolean;
 }
 
 function mount(stateDir?: string, options: Record<string, unknown> = {}): Harness {
@@ -140,20 +136,12 @@ function mount(stateDir?: string, options: Record<string, unknown> = {}): Harnes
   else delete process.env.OPENCODE_STATUS_POPUP_DIR;
 
   const toasts: Toasts[] = [];
-  let claim: { render: () => unknown } | undefined;
   let registered: Layer | undefined;
-  let disposed = false;
 
   const context = {
     options,
     toasts,
     ui: {
-      slot: (next: { render: () => unknown }) => {
-        claim = next;
-        return () => {
-          disposed = true;
-        };
-      },
       toast: { show: (options: Toasts) => void toasts.push(options) },
     },
     keymap: {
@@ -163,20 +151,15 @@ function mount(stateDir?: string, options: Record<string, unknown> = {}): Harnes
     },
   };
 
-  const cleanup = tui.setup(context as never);
-  claim?.render();
+  tui.setup(context as never);
 
   return {
     context: { toasts },
     layer: () => {
-      if (!registered) throw new Error("render did not register a keymap layer");
+      if (!registered) throw new Error("setup did not register a keymap layer");
       return registered;
     },
-    cleanup: () => {
-      cleanup?.();
-    },
-    disposed: () => disposed,
-    claimed: () => claim !== undefined,
+    registered: () => registered !== undefined,
   };
 }
 

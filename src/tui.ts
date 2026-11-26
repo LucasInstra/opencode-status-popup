@@ -72,47 +72,38 @@ export default {
       }
     };
 
-    // The slot owns the keymap layer registered during its render, so returning
-    // its disposer is what unregisters the palette on a reload or a disable;
-    // without it every reload would stack a second copy of the commands.
-    const disposeSlot = context.ui.slot({
-      append: "app",
-      render() {
-        context.keymap.layer(() => ({
-          mode: "global",
-          commands: [
-            ...MODES.map((mode) => ({
-              id: `popup.${mode}`,
-              title: TITLE[mode],
-              group: "Popup",
-              palette: true as const,
-              run() {
-                const sent = request({ mode });
-                context.ui.toast.show({
-                  variant: sent ? "info" : "error",
-                  message: sent ? DONE[mode] : COULD_NOT_REACH,
-                });
-              },
-            })),
-            {
-              id: "popup.static",
-              title: "Popup: tray idle static",
-              group: "Popup",
-              palette: true as const,
-              run() {
-                const sent = request({ idleStatic: "toggle" });
-                context.ui.toast.show({
-                  variant: sent ? "info" : "error",
-                  message: sent ? TOGGLE_IDLE_STATIC : COULD_NOT_REACH,
-                });
-              },
-            },
-          ],
-        }));
-        return null;
-      },
-    });
-
-    return () => disposeSlot();
+    // OpenCode 2.1+ removes a layer created in setup when the plugin deactivates
+    // or reloads, so registering here does not stack a copy of the palette.
+    context.keymap.layer(() => ({
+      mode: "global",
+      commands: [
+        ...MODES.map((mode) => ({
+          id: `popup.${mode}`,
+          title: TITLE[mode],
+          group: "Popup",
+          palette: true as const,
+          run() {
+            const sent = request({ mode });
+            context.ui.toast.show({
+              variant: sent ? "info" : "error",
+              message: sent ? DONE[mode] : COULD_NOT_REACH,
+            });
+          },
+        })),
+        {
+          id: "popup.static",
+          title: "Popup: tray idle static",
+          group: "Popup",
+          palette: true as const,
+          run() {
+            const sent = request({ idleStatic: "toggle" });
+            context.ui.toast.show({
+              variant: sent ? "info" : "error",
+              message: sent ? TOGGLE_IDLE_STATIC : COULD_NOT_REACH,
+            });
+          },
+        },
+      ],
+    }));
   },
 } satisfies Plugin.Definition;

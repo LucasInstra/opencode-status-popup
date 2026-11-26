@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PERMISSION_MS, MAX_SILENCE_MS, SessionActivity } from "../src/status";
+import { HANDLED_EVENTS, MAX_PERMISSION_MS, MAX_SILENCE_MS, SessionActivity } from "../src/status";
 
 function started(sessionID: string) {
   return { type: "session.execution.started", data: { sessionID } };
@@ -281,5 +281,41 @@ describe("SessionActivity", () => {
     expect(activity.apply({ type: "session.tool.progress", data: { sessionID: "ses_1" } })).toMatchObject({ phase: "busy" });
     expect(activity.apply(asked("per_1", "bash"))?.phase).toBe("permission");
     expect(activity.apply(asked("per_2", "edit"))?.phase).toBe("permission");
+  });
+});
+
+describe("HANDLED_EVENTS", () => {
+  it("lists each event once and leaves unrelated types out", () => {
+    expect(new Set(HANDLED_EVENTS).size).toBe(HANDLED_EVENTS.length);
+    expect(HANDLED_EVENTS).toContain("session.status");
+    expect(HANDLED_EVENTS).toContain("permission.asked");
+    expect(HANDLED_EVENTS).toContain("form.created");
+    // The terminal events have dedicated branches outside the sets: keep an
+    // explicit assertion so dropping one from the list cannot hide behind the
+    // "covers every listed type" loop.
+    expect(HANDLED_EVENTS).toContain("session.execution.failed");
+    expect(HANDLED_EVENTS).toContain("session.execution.succeeded");
+    expect(HANDLED_EVENTS).toContain("session.idle");
+    expect(HANDLED_EVENTS).toContain("session.retry.scheduled");
+    expect(HANDLED_EVENTS).not.toContain("config.updated");
+  });
+
+  it("covers every type the tracker reacts to", () => {
+    for (const type of HANDLED_EVENTS) {
+      const activity = new SessionActivity();
+      const event = {
+        type,
+        data: {
+          sessionID: "ses_1",
+          id: "per_1",
+          requestID: "per_1",
+          action: "bash",
+          resources: [],
+          status: { type: "busy" },
+          form: { id: "frm_1", title: "Form", fields: [] },
+        },
+      };
+      expect(activity.apply(event), type).toBeDefined();
+    }
   });
 });

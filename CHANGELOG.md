@@ -4,6 +4,25 @@ Notable changes to this project, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 — 2026-11-23
+
+### Changed
+
+- Requires OpenCode 2.2.0 or newer (`engines.opencode`). A local plugin
+  directory now loads through `package.json` `name` + `exports`, the same path
+  as an installed package.
+- The TUI palette registers its keymap layer directly in setup: OpenCode 2.1+
+  disposes it when the plugin deactivates or reloads, so the slot workaround is
+  gone.
+- `@opencode/plugin` is now 2.4.1 (was 2.0.14).
+- `event.subscribe` now passes the event types the tracker handles, so OpenCode
+  2.2+ delivers only those types to the plugin.
+
+### Removed
+
+- The root `index.ts` and `tui.ts` compatibility shims, only needed by OpenCode
+  2.0/2.1. Use the 0.3.x line on those runtimes.
+
 ## 0.3.3 — 2026-09-24
 
 ### Fixed

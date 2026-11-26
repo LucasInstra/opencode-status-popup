@@ -51,10 +51,16 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
   const executables = new Map<string, (input: unknown) => unknown>();
   const tools: string[] = [];
   const disposals: string[] = [];
+  let subscribeOptions: { signal?: AbortSignal; types?: readonly string[] } | undefined;
   const context = {
     options: { mode, idleSeconds: 30, trayIdleStatic: true },
     location: { directory },
-    event: { subscribe: (options?: { signal?: AbortSignal }) => queue.stream(options?.signal) },
+    event: {
+      subscribe: (options?: { signal?: AbortSignal; types?: readonly string[] }) => {
+        subscribeOptions = options;
+        return queue.stream(options?.signal);
+      },
+    },
     storage: {
       get: async (key: string) => store.get(key),
       set: async (key: string, value: unknown) => void store.set(key, value),
@@ -108,6 +114,12 @@ async function runCycle(mode: "window" | "tray"): Promise<CycleResult> {
       "popup-window",
     ]);
     expect(tools).toContain("popup_mode");
+    // The subscription asks for the events the tracker handles (2.2+), so the
+    // host does not deliver unrelated types to the plugin.
+    expect(subscribeOptions?.types).toContain("session.status");
+    expect(subscribeOptions?.types).toContain("permission.asked");
+    expect(subscribeOptions?.types).toContain("form.created");
+    expect(new Set(subscribeOptions?.types).size).toBe(subscribeOptions?.types?.length);
 
     queue.push({ type: "session.status", data: { sessionID: "ses_smoke", status: { type: "busy" } } });
     const busy = await waitFor(() => {
